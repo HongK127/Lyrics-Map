@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>目的地攻略 · 陈绮贞歌词地图</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="web-app" data-page="destination">
+  <header class="site-header">
+    <a class="site-mark" href="./index.html">Cheer Travel Atlas</a>
+    <p>Travel is meaningful</p>
+  </header>
+
+  <main class="detail-shell">
+    <nav class="side-nav" aria-label="功能导航">
+      <a href="./index.html">地图总览</a>
+      <a class="active" href="./guides.html">目的地攻略</a>
+      <a href="./songs.html">歌曲收录</a>
+      <a href="./postcard.html">制作明信片</a>
+      <a href="./ai.html">AI旅行歌单</a>
+    </nav>
+
+    <article class="journal-page">
+      <section class="journal-hero">
+        <img data-destination-image alt="" />
+        <div>
+          <p class="eyebrow" data-destination-continent></p>
+          <h1 data-destination-title></h1>
+          <p data-destination-intro></p>
+          <blockquote data-destination-lyric></blockquote>
+          <p class="concept-note" data-concept-note hidden>这是歌词意象地点，使用代表性坐标，不等同于单一城市坐标。</p>
+          <p class="source-line" data-image-credit></p>
+        </div>
+      </section>
+
+      <section class="local-map-section">
+        <div class="local-map-card">
+          <div id="localMap"></div>
+        </div>
+        <div class="pin-legend">
+          <span class="pin eat">吃</span>
+          <span class="pin stay">住</span>
+          <span class="pin move">行</span>
+          <span class="pin shop">购物</span>
+        </div>
+      </section>
+
+      <section class="recommendation-board" data-recommendation-board></section>
+
+      <section class="route-panel">
+        <div class="panel-title">
+          <h2>旅行路线</h2>
+          <span>歌词巡礼手账</span>
+        </div>
+        <ol data-route-list></ol>
+      </section>
+
+      <section class="source-board">
+        <div class="panel-title">
+          <h2>来源与核验</h2>
+          <span>不伪造评分，打开来源核验实时信息</span>
+        </div>
+        <div data-source-list></div>
+      </section>
+    </article>
+  </main>
+
+  <script src="/config.js?v=amap-20260502"></script>
+  <script src="./data.js"></script>
+  <script src="./app.js?v=amap-fallback-20260502"></script>
+</body>
+</html>

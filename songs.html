@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>歌曲收录 · 陈绮贞歌词地图</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="web-app" data-page="songs">
+  <header class="site-header">
+    <a class="site-mark" href="./index.html">Cheer Travel Atlas</a>
+    <p>Travel is meaningful</p>
+  </header>
+
+  <main class="archive-shell">
+    <nav class="side-nav" aria-label="功能导航">
+      <a href="./index.html">地图总览</a>
+      <a href="./guides.html">目的地攻略</a>
+      <a class="active" href="./songs.html">歌曲收录</a>
+      <a href="./postcard.html">制作明信片</a>
+      <a href="./ai.html">AI旅行歌单</a>
+    </nav>
+
+    <section class="archive-content">
+      <div class="archive-head">
+        <p class="eyebrow">song module</p>
+        <h1>歌曲、作品与地点关系</h1>
+        <p>修正歌曲归属与封面来源；每张卡片保留事实来源、封面来源与关联目的地。</p>
+      </div>
+      <div class="song-grid" data-song-grid></div>
+    </section>
+  </main>
+
+  <script src="./data.js"></script>
+  <script src="./app.js?v=amap-fallback-20260502"></script>
+</body>
+</html>

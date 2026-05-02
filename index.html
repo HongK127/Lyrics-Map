@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>陈绮贞歌词地图 · Web 原型</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="web-app" data-page="home">
+  <header class="site-header">
+    <a class="site-mark" href="./index.html">Cheer Travel Atlas</a>
+    <p>Travel is meaningful</p>
+  </header>
+
+  <main class="home-shell">
+    <nav class="side-nav" aria-label="功能导航">
+      <a class="active" href="./index.html">地图总览</a>
+      <a href="./guides.html">目的地攻略</a>
+      <a href="./songs.html">歌曲收录</a>
+      <a href="./postcard.html">制作明信片</a>
+      <a href="./ai.html">AI旅行歌单</a>
+    </nav>
+
+    <section class="map-workspace" aria-label="歌词旅行地图">
+      <div class="travel-shelf" aria-hidden="true">
+        <span>MAP</span><span>BOOK</span><span>AIR MAIL</span><span>STAMP</span>
+      </div>
+      <div class="map-tools">
+        <label class="search-box">
+          <span>搜索</span>
+          <input data-search type="search" placeholder="地点 / 歌曲 / 歌词" />
+        </label>
+        <div class="continent-tabs" data-continent-tabs></div>
+      </div>
+      <div class="map-board">
+        <div id="worldMap" aria-label="世界地图"></div>
+        <p class="flight-note">点击大洲，地图会缩放到对应区域；点击行李牌标记打开地点明信片。</p>
+      </div>
+      <div class="destination-strip" data-home-list></div>
+    </section>
+
+    <aside class="postcard-panel" data-home-postcard>
+      <p class="eyebrow">selected postcard</p>
+      <img data-postcard-image alt="地点明信片图片" />
+      <div class="stamp">LYRIC MAP</div>
+      <h1 data-postcard-title>巴黎（法国）</h1>
+      <p data-postcard-intro>点击地图上的地点标记查看明信片。</p>
+      <blockquote data-postcard-lyric>你品尝了夜的巴黎</blockquote>
+      <a class="primary-link" data-postcard-link href="./destination.html?id=paris">打开局部地图与攻略</a>
+      <p class="source-line" data-postcard-source></p>
+    </aside>
+  </main>
+
+  <script src="/config.js?v=amap-20260502"></script>
+  <script src="./data.js"></script>
+  <script src="./app.js?v=amap-fallback-20260502"></script>
+</body>
+</html>

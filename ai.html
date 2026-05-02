@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI旅行歌单 · 陈绮贞歌词地图</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="web-app" data-page="ai">
+  <header class="site-header">
+    <a class="site-mark" href="./index.html">Cheer Travel Atlas</a>
+    <p>Travel is meaningful</p>
+  </header>
+  <main class="ai-shell">
+    <nav class="side-nav" aria-label="功能导航">
+      <a href="./index.html">地图总览</a>
+      <a href="./guides.html">目的地攻略</a>
+      <a href="./songs.html">歌曲收录</a>
+      <a href="./postcard.html">制作明信片</a>
+      <a class="active" href="./ai.html">AI旅行歌单</a>
+    </nav>
+    <section class="ai-panel">
+      <p class="eyebrow">ai travel desk</p>
+      <h1>联网AI旅行助手与个性化歌单</h1>
+      <div class="ai-grid">
+        <label>目的地<select data-ai-destination></select></label>
+        <label>天数<input data-ai-days value="2 天"></label>
+        <label>预算<input data-ai-budget value="中等预算"></label>
+        <label>喜欢的类型 / 风格<input data-ai-style value="文艺、慢游、胶片感、城市夜景"></label>
+      </div>
+      <div class="ai-actions">
+        <button type="button" data-ai-action="trip">生成旅行建议</button>
+        <button type="button" data-ai-action="playlist">生成旅行歌单</button>
+        <a class="deepseek-link" href="https://chat.deepseek.com/" target="_blank" rel="noreferrer">打开 DeepSeek 官网对话</a>
+      </div>
+      <pre data-ai-output>选择目的地、天数、预算和喜欢的风格后，可通过本地服务调用 DeepSeek / 豆包 API。未配置 API key 时会自动输出可复制提示词。</pre>
+    </section>
+  </main>
+  <script src="/config.js?v=amap-20260502"></script>
+  <script src="./data.js"></script>
+  <script src="./app.js?v=amap-fallback-20260502"></script>
+</body>
+</html>

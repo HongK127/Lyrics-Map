@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>制作明信片 · 陈绮贞歌词地图</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="web-app" data-page="postcard">
+  <header class="site-header">
+    <a class="site-mark" href="./index.html">Cheer Travel Atlas</a>
+    <p>Travel is meaningful</p>
+  </header>
+  <main class="postcard-maker-shell">
+    <nav class="side-nav" aria-label="功能导航">
+      <a href="./index.html">地图总览</a>
+      <a href="./guides.html">目的地攻略</a>
+      <a href="./songs.html">歌曲收录</a>
+      <a class="active" href="./postcard.html">制作明信片</a>
+      <a href="./ai.html">AI旅行歌单</a>
+    </nav>
+    <section class="maker-form">
+      <p class="eyebrow">air mail studio</p>
+      <h1>制作属于你的旅行明信片</h1>
+      <label>上传旅行美景图片<input type="file" accept="image/*" data-postcard-upload></label>
+      <label>选择目的地<select data-postcard-destination></select></label>
+      <label>写下当时的感受<textarea data-postcard-text>把歌词落在地图上，也把这一天寄给未来的自己。</textarea></label>
+      <p class="source-line">图片仅在浏览器本地预览，不会上传。</p>
+    </section>
+    <section class="custom-postcard" data-custom-postcard>
+      <img data-custom-image alt="明信片图片预览">
+      <div class="stamp">AIR MAIL</div>
+      <h2 data-custom-title></h2>
+      <blockquote data-custom-lyric></blockquote>
+      <p data-custom-text></p>
+    </section>
+  </main>
+  <script src="./data.js"></script>
+  <script src="./app.js?v=amap-fallback-20260502"></script>
+</body>
+</html>
