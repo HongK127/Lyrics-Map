@@ -1,10 +1,11 @@
 (() => {
-  const accessed = "2026-05-01";
+  const accessed = "2026-05-07";
 
   const search = {
     googleMaps: (q) => `https://www.google.com/maps/search/${encodeURIComponent(q)}`,
     xhs: (q) => `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(q)}`,
     agoda: (q) => `https://www.agoda.com/search?city=${encodeURIComponent(q)}`,
+    doubanBook: (q) => `https://book.douban.com/subject_search?search_text=${encodeURIComponent(q)}`,
     commons: (q) => `https://commons.wikimedia.org/w/index.php?search=${encodeURIComponent(q)}&title=Special:MediaSearch&type=image`,
     local: (path) => path,
   };
@@ -16,8 +17,50 @@
     pending,
   });
 
-  const assetPlace = (id) => `./assets/places/${id}.svg`;
+  const placeImages = {
+    paris: "巴黎.jpg",
+    beijing: "北京.jpg",
+    okinawa: "冲绳.JPG",
+    turkey: "土耳其.jpg",
+    shanghai: "上海.jpg",
+    "geneva-lake": "日内瓦.jpg",
+    qinghai: "青海.JPG",
+    sanya: "三亚.jpg",
+    iceland: "冰岛.jpg",
+    greece: "希腊.jpg",
+    "south-america": "南美.jpg",
+    desert: "沙漠.jpg",
+    "highway-one": "一号公路.jpg",
+    jiufen: "九份.JPG",
+    shonan: "湘南海岸.JPG",
+    taipei: "台北.jpg",
+    havana: "哈瓦那.jpg",
+    harbin: "哈尔滨.JPG",
+    norway: "挪威.jpg",
+    uk: "英国.jpg",
+  };
+  const assetPlace = (id) => `./assets/places/${placeImages[id] || `${id}.jpg`}`;
   const assetCover = (name) => `./assets/covers/${name}`;
+  const movieScenes = {
+    shanghai: { label: "上海电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=157" },
+    shonan: { label: "湘南海岸电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=209" },
+    taipei: { label: "台北电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=998" },
+    jiufen: { label: "九份电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=997" },
+    iceland: { label: "冰岛电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=67" },
+    paris: { label: "巴黎电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=677" },
+    "geneva-lake": { label: "瑞士电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=74" },
+    greece: { label: "希腊电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=32" },
+    norway: { label: "挪威电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=75" },
+    uk: { label: "英国电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=8" },
+    beijing: { label: "北京电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=161" },
+    okinawa: { label: "冲绳电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=442" },
+    qinghai: { label: "青海电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=4160" },
+    sanya: { label: "三亚电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=153" },
+    harbin: { label: "哈尔滨电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=163" },
+    turkey: { label: "土耳其电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=68" },
+    "south-america": { label: "南美电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=4" },
+    havana: { label: "哈瓦那电影场景", url: "https://prd.mocation.cc/html/city_detail.html?id=2113" },
+  };
 
   const continents = [
     { id: "all", label: "全部", bounds: [[-48, -130], [68, 150]], center: [22, 40], zoom: 2 },
@@ -37,9 +80,230 @@
   };
 
   const typeNames = { eat: "吃", stay: "住", move: "行", shop: "购物" };
+  const guideKindMeta = {
+    eat: {
+      icon: "🍜",
+      bestFor: ["抵达后的第一餐", "咖啡甜点或轻食", "想把当地味道写进手帐"],
+      reason: "适合把味觉记忆放进行程，作为歌词地图里的城市入口。",
+    },
+    stay: {
+      icon: "🏨",
+      bestFor: ["交通便利优先", "安静慢游优先", "想住得有地点记忆"],
+      reason: "住宿建议只作为筛选入口，最终请按实时位置、评价人数与预算再确认。",
+    },
+    move: {
+      icon: "🚇",
+      bestFor: ["经典打卡动线", "适合散步和拍照", "串联歌词意象"],
+      reason: "适合作为局部地图中的行程节点，方便把照片、歌词和路线串起来。",
+    },
+    shop: {
+      icon: "🛍",
+      bestFor: ["明信片和小物", "书店/唱片/手作", "返程纪念品"],
+      reason: "偏向能带走纸品、书信、唱片或地方记忆的购物节点。",
+    },
+  };
+
+  const book = (title, author, note) => ({
+    title,
+    author,
+    note,
+    source: source("豆瓣图书公开检索", search.doubanBook(`${title} ${author}`)),
+  });
+
+  const readingCatalog = {
+    paris: [
+      book("流动的盛宴", "欧内斯特·海明威", "适合塞纳河边和咖啡馆里读，把巴黎当成一段缓慢移动的青春回忆。"),
+      book("巴黎圣母院", "维克多·雨果", "把城市屋顶、钟楼和老街放回更宏大的巴黎想象里。"),
+    ],
+    beijing: [
+      book("城南旧事", "林海音", "用温柔的童年视角进入老北京胡同、城墙和冬天。"),
+      book("四世同堂", "老舍", "适合在红墙与街巷之间读，补上北京更厚的生活肌理。"),
+    ],
+    okinawa: [
+      book("冲绳札记", "大江健三郎", "把海岛风景背后的历史与身份感带进旅途。"),
+      book("琉球之风", "陈舜臣", "适合配合港口、海风和琉球文化线索慢慢读。"),
+    ],
+    turkey: [
+      book("伊斯坦布尔：一座城市的记忆", "奥尔罕·帕慕克", "把海峡、旧城和个人记忆读成一座城市的灰色底片。"),
+      book("我的名字叫红", "奥尔罕·帕慕克", "适合逛清真寺、集市和博物馆时补一层细密的图像感。"),
+    ],
+    shanghai: [
+      book("长恨歌", "王安忆", "适合在武康路、外滩和老公寓之间读上海的流光。"),
+      book("繁花", "金宇澄", "把街道、饭局、闲谈和城市声响都写进上海漫游。"),
+    ],
+    "geneva-lake": [
+      book("弗兰肯斯坦", "玛丽·雪莱", "这本书的诞生与日内瓦湖畔想象相连，适合阴天湖边读。"),
+      book("新爱洛伊丝", "让-雅克·卢梭", "把湖光、山景和十八世纪情感书信一起放进旅程。"),
+    ],
+    qinghai: [
+      book("昌耀诗选", "昌耀", "适合高原、湖、风和长路，读起来有开阔又粗粝的光线。"),
+      book("藏地牛皮书", "一直", "作为高原旅行读物，适合补充路线之外的行走感。"),
+    ],
+    sanya: [
+      book("苏东坡传", "林语堂", "从海南贬居的历史余温进入海岛，不只读度假感。"),
+      book("海南岛传", "孔见", "适合把三亚放回更完整的岛屿历史与地理里。"),
+    ],
+    iceland: [
+      book("独立的人们", "哈尔多尔·拉克斯内斯", "在风、苔原和冷色光线中读冰岛人的倔强。"),
+      book("冰岛渔夫", "皮埃尔·洛蒂", "适合海岸、公路和寒冷清晨，把远方读得更辽阔。"),
+    ],
+    greece: [
+      book("奥德赛", "荷马", "适合海岛、港口和古迹之间读，像给旅途加一条神话航线。"),
+      book("希腊三部曲", "杰拉尔德·达雷尔", "更轻盈明亮，适合蓝白海岸和慢下午。"),
+    ],
+    "south-america": [
+      book("百年孤独", "加西亚·马尔克斯", "用魔幻现实主义进入南美意象的热、雨和家族记忆。"),
+      book("摩托日记", "切·格瓦拉", "适合把南美当成一条不断展开的青年公路。"),
+    ],
+    desert: [
+      book("小王子", "安托万·德·圣-埃克苏佩里", "适合沙漠夜晚和星空，是轻但不浅的旅行读物。"),
+      book("撒哈拉的故事", "三毛", "把风沙、帐篷和异乡生活写成很有手帐感的篇章。"),
+    ],
+    "highway-one": [
+      book("大瑟尔", "杰克·凯鲁亚克", "适合加州海岸、公路和悬崖边的风。"),
+      book("罐头厂街", "约翰·斯坦贝克", "把蒙特雷一带的海港生活读得更有烟火气。"),
+    ],
+    jiufen: [
+      book("这些人，那些事", "吴念真", "适合九份山城和咖啡店，读台湾记忆里的温柔与旧事。"),
+      book("台北人", "白先勇", "从城市人物进入台湾气质，也适合九份夜色后的延伸阅读。"),
+    ],
+    shonan: [
+      book("海街日记", "吉田秋生", "湘南海岸、镰仓、日常与家人关系，非常贴合坐火车去海边。"),
+      book("心", "夏目漱石", "适合海岸线和电车途中读，安静但余味很长。"),
+    ],
+    taipei: [
+      book("台北人", "白先勇", "适合捷运、街区和夜市之后，读城市人物的回声。"),
+      book("天桥上的魔术师", "吴明益", "把台北旧商场、童年和奇幻感写得很适合做城市手帐。"),
+    ],
+    havana: [
+      book("老人与海", "欧内斯特·海明威", "在哈瓦那海风和老城之间读，简短却很有余味。"),
+      book("背对哈瓦那", "陈绮贞", "与项目气质直接相连，适合做摄影集式的目的地页补充。"),
+    ],
+    harbin: [
+      book("呼兰河传", "萧红", "适合哈尔滨的冬天、旧街和东北记忆。"),
+      book("额尔古纳河右岸", "迟子建", "把北方、河流和寒冷中的生活感带进旅途。"),
+    ],
+    norway: [
+      book("饥饿", "克努特·汉姆生", "适合奥斯陆街头和冷色城市漫游，读一个人的游荡。"),
+      book("玩偶之家", "亨利克·易卜生", "短而锋利，适合在挪威章节里补一层北欧文学底色。"),
+    ],
+    uk: [
+      book("达洛维夫人", "弗吉尼亚·伍尔夫", "适合伦敦街道、花店和一天之内展开的城市意识流。"),
+      book("伦敦传", "彼得·阿克罗伊德", "把地铁、书店、剧院和雨天街道放进更长的城市历史。"),
+    ],
+  };
+
+  const nearbyCatalog = {
+    paris: ["凡尔赛宫", "吉维尼", "枫丹白露", "卢瓦尔河谷"],
+    beijing: ["慕田峪长城", "颐和园", "古北水镇", "天津意式风情区"],
+    okinawa: ["美丽海水族馆", "古宇利岛", "座间味岛", "万座毛"],
+    turkey: ["王子群岛", "卡帕多奇亚", "以弗所", "棉花堡"],
+    shanghai: ["苏州平江路", "杭州西湖", "朱家角古镇", "南京东路与陆家嘴"],
+    "geneva-lake": ["洛桑", "蒙特勒", "霞慕尼", "伊瓦尔"],
+    qinghai: ["青海湖环线", "茶卡盐湖", "祁连卓尔山", "门源油菜花海"],
+    sanya: ["蜈支洲岛", "陵水分界洲岛", "呀诺达雨林", "海口骑楼老街"],
+    iceland: ["黄金圈", "南岸瀑布与黑沙滩", "斯奈山半岛", "雷克雅未克旧港"],
+    greece: ["德尔斐", "圣托里尼", "埃伊纳岛", "苏尼翁海角"],
+    "south-america": ["马丘比丘", "库斯科圣谷", "利马老城", "的的喀喀湖"],
+    desert: ["马拉喀什老城", "阿伊特本哈杜", "梅尔祖卡沙丘", "瓦尔扎扎特"],
+    "highway-one": ["蒙特雷", "卡梅尔小镇", "大瑟尔", "圣西蒙"],
+    jiufen: ["金瓜石", "平溪线", "十分瀑布", "基隆庙口夜市"],
+    shonan: ["江之岛", "镰仓大佛", "七里滨", "逗子海岸"],
+    taipei: ["淡水", "北投", "阳明山", "宜兰"],
+    havana: ["维尼亚莱斯", "巴拉德罗", "海明威故居", "科希马尔"],
+    harbin: ["伏尔加庄园", "太阳岛", "亚布力", "雪乡"],
+    norway: ["卑尔根", "弗洛姆铁路", "松恩峡湾", "奥斯陆博物馆岛"],
+    uk: ["牛津", "剑桥", "温莎", "巴斯"],
+  };
+
+  function sevenDayGuide(row) {
+    const nearby = nearbyCatalog[row.id] || row.move;
+    const daySource = (day, label) => source(
+      `第 ${day} 天 Google Maps 路线检索`,
+      search.googleMaps(`${row.displayName} ${label} ${row.eat[day % row.eat.length] || ""}`)
+    );
+    const xhsSource = (day, label) => source(
+      `第 ${day} 天 小红书攻略检索`,
+      search.xhs(`${row.displayName} ${label} 7日游 攻略`)
+    );
+
+    return [
+      {
+        day: 1,
+        title: `抵达 ${row.name}，建立城市坐标`,
+        area: row.displayName,
+        morning: `抵达后先前往 ${row.stay[0]} 或同区域住宿放行李，确认交通卡、天气和返程票。`,
+        afternoon: `从 ${row.move[0]} 开始熟悉城市方向，拍第一组歌词地图照片。`,
+        evening: `在 ${row.eat[0]} 或附近餐饮点吃第一餐，再到 ${row.shop[0]} 收集明信片、票根或纸品。`,
+        note: "第一天节奏放慢，不安排跨城移动，把入住、补给和第一张手帐页完成。",
+        source: daySource(1, `${row.move[0]} ${row.shop[0]}`),
+      },
+      {
+        day: 2,
+        title: "主城经典线：歌词、地标与散步",
+        area: row.move.slice(0, 3).join(" / "),
+        morning: `上午安排 ${row.move[0]}，尽量避开正午人流并预留拍照时间。`,
+        afternoon: `下午串联 ${row.move[1]}${row.move[2] ? ` 和 ${row.move[2]}` : ""}，把交通、步行距离和休息点写进行程表。`,
+        evening: `晚上用 ${row.eat[1]} 或同区域餐厅收尾，适合整理当天歌词/照片。`,
+        note: "这一天以主城动线为主，适合做最完整的一页城市手帐。",
+        source: daySource(2, row.move.join(" ")),
+      },
+      {
+        day: 3,
+        title: `周边短途：${nearby[0]}`,
+        area: nearby[0],
+        morning: `早上出发去 ${nearby[0]}，先查班次、预约、门票或包车信息。`,
+        afternoon: `下午把 ${nearby[0]} 的主要景点、观景点和咖啡/休息点串成一条轻量路线。`,
+        evening: `傍晚回到 ${row.name}，选择 ${row.eat[2] || row.eat[0]} 附近用餐，避免再安排高强度项目。`,
+        note: "周边日只保留一个核心方向，但当天内部包含交通、主景点、休息和返程。",
+        source: xhsSource(3, nearby[0]),
+      },
+      {
+        day: 4,
+        title: "慢游补白：书店、市场与生活街区",
+        area: row.shop.slice(0, 3).join(" / "),
+        morning: `上午去 ${row.shop[0]} 或附近街区补拍白天素材。`,
+        afternoon: `下午安排 ${row.shop[1]}${row.shop[2] ? ` 和 ${row.shop[2]}` : ""}，挑选书、唱片、香料、票根或纪念品。`,
+        evening: `晚上回到住宿附近，整理购物清单、账单和下一天周边交通。`,
+        note: "这一天不是购物冲刺，而是给旅行日志补纹理和生活感。",
+        source: daySource(4, row.shop.join(" ")),
+      },
+      {
+        day: 5,
+        title: `周边延伸：${nearby[1]}`,
+        area: nearby[1],
+        morning: `上午前往 ${nearby[1]}，提前确认交通时长和最晚返程时间。`,
+        afternoon: `下午围绕 ${nearby[1]} 安排主景点、步行路线和一个休息点。`,
+        evening: `晚上回主城或住在周边，按体力决定是否加夜景、夜市或海边散步。`,
+        note: "第 5 天适合放进更远一点的周边，让 7 日游不只停留在歌词出现的城市中心。",
+        source: xhsSource(5, nearby[1]),
+      },
+      {
+        day: 6,
+        title: `自由探索：${nearby[2]}`,
+        area: nearby[2],
+        morning: `上午把 ${nearby[2]} 作为自由探索方向，先确定天气和交通可行性。`,
+        afternoon: `下午留给临时发现：博物馆、海岸、古镇、市集或一条适合发呆的路。`,
+        evening: `晚上回到 ${row.name}，补一餐喜欢的店，完成照片备份和明信片草稿。`,
+        note: "这一天保留弹性，避免 7 天都像任务表；可按天气替换成室内行程。",
+        source: xhsSource(6, nearby[2]),
+      },
+      {
+        day: 7,
+        title: "收尾返程：最后一张明信片",
+        area: `${row.name} / ${nearby[3] || row.move[0]}`,
+        morning: `上午轻量复访 ${row.move[0]} 或去 ${nearby[3] || row.shop[0]}，补拍漏掉的画面。`,
+        afternoon: `下午去 ${row.shop[2] || row.shop[0]} 买返程小物，确认行李、账单、交通和机场/车站路线。`,
+        evening: `返程前整理 7 天路线、照片和歌词片段，生成一张 Lyrics Map 旅行明信片。`,
+        note: "最后一天以低风险、低强度为原则，给交通延误和打包留余地。",
+        source: daySource(7, `${row.shop[2] || row.shop[0]} ${nearby[3] || ""}`),
+      },
+    ];
+  }
 
   function recommendation(kind, name, destination, lat, lng, index) {
     const query = `${destination} ${name}`;
+    const meta = guideKindMeta[kind];
     const sourceInfo =
       kind === "stay"
         ? source("Agoda 住宿公开检索", search.agoda(query))
@@ -50,10 +314,15 @@
     return {
       name,
       type: typeNames[kind],
+      icon: meta.icon,
       description: descriptions[kind],
+      area: `${destination} · ${name}`,
+      bestFor: meta.bestFor[index] || meta.bestFor[0],
+      reason: meta.reason,
+      verifiedAt: accessed,
       lat: Number((lat + (index - 0.5) * 0.018).toFixed(5)),
       lng: Number((lng + (index - 0.5) * 0.018).toFixed(5)),
-      verification: "请打开来源核验实时评分、评价人数、营业状态与最新价格；原型不伪造实时评分。",
+      verification: `资料入口核验于 ${accessed}；页面不展示实时评分、价格或营业状态，请出发前打开来源再确认。`,
       source: sourceInfo,
     };
   }
@@ -69,10 +338,10 @@
       songs: ["旅行的意义", "Pussy"],
       lyricLines: ["你品尝了夜的巴黎"],
       intro: "塞纳河、铁塔、咖啡馆与夜色构成这张地图里最适合被做成明信片的巴黎。",
-      eat: ["Le Relais de l'Entrecote", "Du Pain et des Idees"],
-      stay: ["The People Paris Marais", "Hotel des Grandes Ecoles"],
-      move: ["埃菲尔铁塔", "塞纳河游船"],
-      shop: ["莎士比亚书店", "圣日耳曼德佩"],
+      eat: ["Le Relais de l'Entrecote", "Du Pain et des Idees", "Cafe de Flore"],
+      stay: ["The People Paris Marais", "Hotel des Grandes Ecoles", "Generator Paris"],
+      move: ["埃菲尔铁塔", "塞纳河游船", "卢浮宫"],
+      shop: ["莎士比亚书店", "圣日耳曼德佩", "老佛爷百货"],
     },
     {
       id: "beijing",
@@ -84,10 +353,10 @@
       songs: ["旅行的意义"],
       lyricLines: ["你踏过下雪的北京"],
       intro: "北京以雪天、红墙、胡同与热茶呈现，更贴近歌词里的冬日脚印。",
-      eat: ["四季民福烤鸭店", "南门涮肉"],
-      stay: ["北京前门文华东方", "东四胡同民宿"],
-      move: ["故宫角楼", "景山公园"],
-      shop: ["南锣鼓巷", "五道营胡同"],
+      eat: ["四季民福烤鸭店", "南门涮肉", "护国寺小吃"],
+      stay: ["北京前门文华东方", "东四胡同民宿", "The Orchid Hotel 北京"],
+      move: ["故宫角楼", "景山公园", "什刹海"],
+      shop: ["南锣鼓巷", "五道营胡同", "Page One 北京坊"],
     },
     {
       id: "okinawa",
@@ -99,10 +368,10 @@
       songs: ["旅行的意义"],
       lyricLines: ["你拥抱热情的岛屿"],
       intro: "冲绳改为热情岛屿与海岸风格：蓝洞、美国村、海风与夏日公路。",
-      eat: ["A&W Okinawa", "第一牧志公设市场"],
-      stay: ["La'gent Hotel Okinawa Chatan", "Okinawa Guest House Grand Naha"],
-      move: ["美国村", "青之洞窟"],
-      shop: ["壶屋陶器街", "Umikaji Terrace"],
+      eat: ["A&W Okinawa", "第一牧志公设市场", "Blue Seal Ice Park"],
+      stay: ["La'gent Hotel Okinawa Chatan", "Okinawa Guest House Grand Naha", "Vessel Hotel Campana Okinawa"],
+      move: ["美国村", "青之洞窟", "首里城公园"],
+      shop: ["壶屋陶器街", "Umikaji Terrace", "国际通"],
     },
     {
       id: "turkey",
@@ -114,10 +383,10 @@
       songs: ["旅行的意义"],
       lyricLines: ["你埋葬记忆的土耳其"],
       intro: "歌词里的土耳其像一枚记忆邮戳，页面以伊斯坦布尔与安卡拉作为可旅行坐标。",
-      eat: ["Hafiz Mustafa", "Sultanahmet Koftecisi"],
-      stay: ["Cheers Hostel Istanbul", "Hotel Amira Istanbul"],
-      move: ["蓝色清真寺", "博斯普鲁斯海峡"],
-      shop: ["大巴扎", "香料市场"],
+      eat: ["Hafiz Mustafa", "Sultanahmet Koftecisi", "Pandeli Restaurant"],
+      stay: ["Cheers Hostel Istanbul", "Hotel Amira Istanbul", "Sultanahmet Palace Hotel"],
+      move: ["蓝色清真寺", "博斯普鲁斯海峡", "圣索菲亚大清真寺"],
+      shop: ["大巴扎", "香料市场", "Arasta Bazaar"],
     },
     {
       id: "shanghai",
@@ -129,10 +398,10 @@
       songs: ["我喜欢上你时的内心活动"],
       lyricLines: ["上海的街道 雪山在边上"],
       intro: "上海是街道、咖啡、橱窗与电影感的组合，适合做城市漫游手账。",
-      eat: ["佳家汤包", "% Arabica 武康路"],
-      stay: ["上海衡山马勒别墅饭店", "大隐国际青年旅舍"],
-      move: ["武康路", "外滩"],
-      shop: ["安福路", "茑屋书店"],
+      eat: ["佳家汤包", "% Arabica 武康路", "老吉士"],
+      stay: ["上海衡山马勒别墅饭店", "大隐国际青年旅舍", "上海璞丽酒店"],
+      move: ["武康路", "外滩", "豫园"],
+      shop: ["安福路", "茑屋书店", "衡山和集"],
     },
     {
       id: "geneva-lake",
@@ -144,10 +413,10 @@
       songs: ["我喜欢上你时的内心活动"],
       lyricLines: ["你看那九点钟方向 日内瓦湖的房子贵吗"],
       intro: "日内瓦湖以湖面、喷泉和阿尔卑斯远景呈现，贴合歌词里的房子与湖。",
-      eat: ["Bains des Paquis", "Chez Ma Cousine"],
-      stay: ["Hotel Suisse Geneva", "City Hostel Geneva"],
-      move: ["日内瓦湖喷泉", "花钟"],
-      shop: ["Rue du Rhone", "Manor Geneve"],
+      eat: ["Bains des Paquis", "Chez Ma Cousine", "Cafe du Soleil"],
+      stay: ["Hotel Suisse Geneva", "City Hostel Geneva", "MEININGER Hotel Geneve Centre Charmilles"],
+      move: ["日内瓦湖喷泉", "花钟", "万国宫"],
+      shop: ["Rue du Rhone", "Manor Geneve", "Plainpalais 跳蚤市场"],
     },
     {
       id: "qinghai",
@@ -159,10 +428,10 @@
       songs: ["我喜欢上你时的内心活动"],
       lyricLines: ["你喜欢去哪 青海或三亚"],
       intro: "青海以湖、盐、风和高原光线为主，适合缓慢而开阔的旅行路线。",
-      eat: ["益鑫羊肉手抓馆", "德禄酸奶"],
-      stay: ["西宁新华联索菲特", "青海湖黑马河客栈"],
-      move: ["青海湖", "茶卡盐湖"],
-      shop: ["莫家街", "水井巷"],
+      eat: ["益鑫羊肉手抓馆", "德禄酸奶", "马忠食府"],
+      stay: ["西宁新华联索菲特", "青海湖黑马河客栈", "西宁中心智选假日酒店"],
+      move: ["青海湖", "茶卡盐湖", "塔尔寺"],
+      shop: ["莫家街", "水井巷", "西宁王府井"],
     },
     {
       id: "sanya",
@@ -174,10 +443,10 @@
       songs: ["我喜欢上你时的内心活动"],
       lyricLines: ["你喜欢去哪 青海或三亚"],
       intro: "三亚保留海边胶片感：椰子、落日、免税店和湿热的夏天。",
-      eat: ["嗲嗲的椰子鸡", "阿浪海鲜"],
-      stay: ["三亚艾迪逊酒店", "三亚湾青旅"],
-      move: ["椰梦长廊", "亚龙湾"],
-      shop: ["三亚国际免税城", "第一市场"],
+      eat: ["嗲嗲的椰子鸡", "阿浪海鲜", "林姐香味海鲜"],
+      stay: ["三亚艾迪逊酒店", "三亚湾青旅", "亚特兰蒂斯三亚"],
+      move: ["椰梦长廊", "亚龙湾", "天涯海角"],
+      shop: ["三亚国际免税城", "第一市场", "解放路步行街"],
     },
     {
       id: "iceland",
@@ -189,10 +458,10 @@
       songs: ["我喜欢上你时的内心活动"],
       lyricLines: ["冰岛或希腊 南美不去吗"],
       intro: "冰岛是极光、瀑布、苔原和温泉的组合，适合冷色调旅行手账。",
-      eat: ["Baejarins Beztu Pylsur", "Cafe Loki"],
-      stay: ["Kex Hostel Reykjavik", "Fosshotel Glacier Lagoon"],
-      move: ["黄金圈", "蓝湖温泉"],
-      shop: ["Laugavegur 购物街", "Kolaportid 跳蚤市场"],
+      eat: ["Baejarins Beztu Pylsur", "Cafe Loki", "Reykjavik Roasters"],
+      stay: ["Kex Hostel Reykjavik", "Fosshotel Glacier Lagoon", "Center Hotels Plaza"],
+      move: ["黄金圈", "蓝湖温泉", "Reynisfjara 黑沙滩"],
+      shop: ["Laugavegur 购物街", "Kolaportid 跳蚤市场", "12 Tonar 唱片店"],
     },
     {
       id: "greece",
@@ -204,10 +473,10 @@
       songs: ["我喜欢上你时的内心活动"],
       lyricLines: ["冰岛或希腊 南美不去吗"],
       intro: "希腊以蓝白海岛和雅典古迹承接歌词里的远方选择题。",
-      eat: ["O Thanasis Athens", "Kostas Souvlaki"],
-      stay: ["City Circus Athens", "Santorini Hostel"],
-      move: ["雅典卫城", "普拉卡"],
-      shop: ["Monastiraki 跳蚤市场", "Ermou Street"],
+      eat: ["O Thanasis Athens", "Kostas Souvlaki", "Ta Karamanlidika tou Fani"],
+      stay: ["City Circus Athens", "Santorini Hostel", "A for Athens"],
+      move: ["雅典卫城", "普拉卡", "圣托里尼伊亚"],
+      shop: ["Monastiraki 跳蚤市场", "Ermou Street", "普拉卡手作店"],
     },
     {
       id: "south-america",
@@ -220,10 +489,10 @@
       lyricLines: ["冰岛或希腊 南美不去吗"],
       intro: "南美作为歌词意象，暂以库斯科与马丘比丘代表安第斯山脉的旅行想象。",
       isConceptPlace: true,
-      eat: ["Central Restaurante Lima", "San Pedro Market"],
-      stay: ["Pariwana Hostel Cusco", "Tierra Viva Cusco"],
-      move: ["马丘比丘", "库斯科圣谷"],
-      shop: ["圣佩德罗市场", "羊驼织物店"],
+      eat: ["Central Restaurante Lima", "San Pedro Market", "MIL Centro"],
+      stay: ["Pariwana Hostel Cusco", "Tierra Viva Cusco", "Selina Plaza de Armas Cusco"],
+      move: ["马丘比丘", "库斯科圣谷", "彩虹山"],
+      shop: ["圣佩德罗市场", "羊驼织物店", "库斯科传统纺织中心"],
     },
     {
       id: "desert",
@@ -236,10 +505,10 @@
       lyricLines: ["沙漠你爱吗"],
       intro: "沙漠作为歌词意象，选择摩洛哥撒哈拉营地路线作为可执行代表。",
       isConceptPlace: true,
-      eat: ["Cafe Clock Marrakech", "Nomad Marrakech"],
-      stay: ["Riad BE Marrakech", "Sahara Desert Luxury Camp"],
-      move: ["马拉喀什", "Merzouga 沙丘"],
-      shop: ["马拉喀什市集", "香料广场"],
+      eat: ["Cafe Clock Marrakech", "Nomad Marrakech", "Le Jardin Marrakech"],
+      stay: ["Riad BE Marrakech", "Sahara Desert Luxury Camp", "Kasbah Mohayut"],
+      move: ["马拉喀什", "Merzouga 沙丘", "阿伊特本哈杜"],
+      shop: ["马拉喀什市集", "香料广场", "Souk Semmarine"],
     },
     {
       id: "highway-one",
@@ -251,10 +520,10 @@
       songs: ["我喜欢上你时的内心活动"],
       lyricLines: ["知道吗 今天的消息 说一号公路上 那座桥断了"],
       intro: "一号公路改为海岸公路、断崖和车窗视角，让页面更像公路片。",
-      eat: ["Nepenthe Big Sur", "Big Sur Bakery"],
-      stay: ["HI Monterey Hostel", "Carmel Mission Inn"],
-      move: ["Bixby Creek Bridge", "Big Sur"],
-      shop: ["Carmel Plaza", "Monterey Cannery Row"],
+      eat: ["Nepenthe Big Sur", "Big Sur Bakery", "Alta Bakery"],
+      stay: ["HI Monterey Hostel", "Carmel Mission Inn", "Big Sur River Inn"],
+      move: ["Bixby Creek Bridge", "Big Sur", "Pfeiffer Beach"],
+      shop: ["Carmel Plaza", "Monterey Cannery Row", "Henry Miller Memorial Library"],
     },
     {
       id: "jiufen",
@@ -266,10 +535,10 @@
       songs: ["九份的咖啡店"],
       lyricLines: ["这样的午后我坐在九份的马路边", "这样的午夜我坐在九份的咖啡店"],
       intro: "九份以山城、茶楼、夜色和咖啡店呈现，回到歌曲里的九份。",
-      eat: ["阿妹茶楼", "赖阿婆芋圆"],
-      stay: ["九份山经民宿", "九份老街民宿"],
-      move: ["九份老街", "瑞芳车站"],
-      shop: ["九份茶具店", "老街明信片"],
+      eat: ["阿妹茶楼", "赖阿婆芋圆", "阿柑姨芋圆"],
+      stay: ["九份山经民宿", "九份老街民宿", "途中九份国际青年旅舍"],
+      move: ["九份老街", "瑞芳车站", "黄金博物馆"],
+      shop: ["九份茶具店", "老街明信片", "泥人吴鬼脸馆"],
     },
     {
       id: "shonan",
@@ -281,10 +550,10 @@
       songs: ["坐火车到传说中的湘南海岸"],
       lyricLines: ["坐火车到传说中的湘南海岸"],
       intro: "湘南改成海边、江之电、铁路与浪花风格，更符合坐火车去海岸的歌词。",
-      eat: ["Bills Shichirigahama", "镰仓小町通小吃"],
-      stay: ["Kamakura Guesthouse", "WeBase Kamakura"],
-      move: ["镰仓高校前", "江之岛"],
-      shop: ["小町通", "江之岛商店街"],
+      eat: ["Bills Shichirigahama", "镰仓小町通小吃", "Amalfi Della Sera"],
+      stay: ["Kamakura Guesthouse", "WeBase Kamakura", "Kamakura Prince Hotel"],
+      move: ["镰仓高校前", "江之岛", "七里滨"],
+      shop: ["小町通", "江之岛商店街", "Kotori 文具店"],
     },
     {
       id: "taipei",
@@ -296,10 +565,10 @@
       songs: ["台北某个地方"],
       lyricLines: ["有人在吗 台北的某个地方 为何听不见你的回答"],
       intro: "台北是城市回声：捷运、咖啡、书店、夜市和某个等待回答的地方。",
-      eat: ["永康牛肉面", "宁夏夜市"],
-      stay: ["Star Hostel Taipei Main Station", "中山民宿"],
-      move: ["大安森林公园", "淡水河岸"],
-      shop: ["诚品生活南西", "华山1914"],
+      eat: ["永康牛肉面", "宁夏夜市", "阜杭豆浆"],
+      stay: ["Star Hostel Taipei Main Station", "中山民宿", "Kimpton Da An Taipei"],
+      move: ["大安森林公园", "淡水河岸", "象山"],
+      shop: ["诚品生活南西", "华山1914", "松山文创园区"],
     },
     {
       id: "havana",
@@ -311,10 +580,10 @@
       songs: ["背对哈瓦那"],
       lyricLines: ["背对哈瓦那"],
       intro: "哈瓦那以老爷车、海滨大道和摄影集气质为主，适合做书封式页面。",
-      eat: ["La Guarida Havana", "El Floridita"],
-      stay: ["Hostal Valencia Havana", "Hotel Nacional de Cuba"],
-      move: ["哈瓦那老城", "马雷贡海滨大道"],
-      shop: ["古巴海报店", "手作唱片摊"],
+      eat: ["La Guarida Havana", "El Floridita", "Dona Eutimia"],
+      stay: ["Hostal Valencia Havana", "Hotel Nacional de Cuba", "Casa Particular Habana Vieja"],
+      move: ["哈瓦那老城", "马雷贡海滨大道", "革命广场"],
+      shop: ["古巴海报店", "手作唱片摊", "Almacenes San Jose"],
     },
     {
       id: "harbin",
@@ -326,10 +595,10 @@
       songs: ["失败者的飞翔"],
       lyricLines: ["失败者的飞翔是在哈尔滨的一家饭店写完的"],
       intro: "哈尔滨用冬天、饭店、俄式建筑和《失败者的飞翔》形成城市章节。",
-      eat: ["老厨家锅包肉", "马迭尔冷饮厅"],
-      stay: ["哈尔滨中央大街马迭尔宾馆", "哈尔滨青旅"],
-      move: ["中央大街", "圣索菲亚教堂"],
-      shop: ["秋林里道斯", "中央书店"],
+      eat: ["老厨家锅包肉", "马迭尔冷饮厅", "华梅西餐厅"],
+      stay: ["哈尔滨中央大街马迭尔宾馆", "哈尔滨青旅", "哈尔滨香格里拉"],
+      move: ["中央大街", "圣索菲亚教堂", "冰雪大世界"],
+      shop: ["秋林里道斯", "中央书店", "果戈里书店"],
     },
     {
       id: "norway",
@@ -341,10 +610,10 @@
       songs: ["Groupies 吉他手"],
       lyricLines: ["有千百种可能无解答 你去挪威找鱼算账"],
       intro: "挪威换成峡湾、渔村和冷色海岸，贴合歌词里的鱼与远方。",
-      eat: ["Fiskeriet Youngstorget", "Mathallen Oslo"],
-      stay: ["Anker Hostel Oslo", "Citybox Bergen"],
-      move: ["奥斯陆峡湾", "卑尔根布吕根"],
-      shop: ["Aker Brygge", "Bryggen 商店"],
+      eat: ["Fiskeriet Youngstorget", "Mathallen Oslo", "Lofoten Fiskerestaurant"],
+      stay: ["Anker Hostel Oslo", "Citybox Bergen", "Bergen Bors Hotel"],
+      move: ["奥斯陆峡湾", "卑尔根布吕根", "弗洛伊恩山"],
+      shop: ["Aker Brygge", "Bryggen 商店", "Norli Universitetsgata"],
     },
     {
       id: "uk",
@@ -356,10 +625,10 @@
       songs: ["下个星期去英国"],
       lyricLines: ["oh 你收了行李 下个星期要去英国"],
       intro: "英国章节保留收拾行李的感觉：书店、地铁、剧院、唱片和雨天街道。",
-      eat: ["Dishoom Covent Garden", "Borough Market"],
-      stay: ["YHA London Central", "The Hoxton Shoreditch"],
-      move: ["大英博物馆", "伦敦地铁"],
-      shop: ["Daunt Books", "Rough Trade East"],
+      eat: ["Dishoom Covent Garden", "Borough Market", "Fortnum & Mason"],
+      stay: ["YHA London Central", "The Hoxton Shoreditch", "The Z Hotel Soho"],
+      move: ["大英博物馆", "伦敦地铁", "泰晤士河步道"],
+      shop: ["Daunt Books", "Rough Trade East", "Foyles Charing Cross"],
     },
   ];
 
@@ -380,7 +649,7 @@
       }))
     );
     const imageCredit = source(
-      "本地旅行手账插画素材（可替换为 Bing 往期壁纸 / 免费图库 / AI 歌词意境图）",
+      "本地 JPG 实景图",
       "./assets/sources.json",
       false
     );
@@ -392,20 +661,17 @@
       postcardImage: assetPlace(row.id),
       gallery: [assetPlace(row.id)],
       imageCredit,
+      movieScene: movieScenes[row.id] || null,
       recommendations: recs,
+      readingRecommendations: readingCatalog[row.id] || [],
       mapPins,
-      route: [
-        `抵达 ${row.name}，先确认交通方式与天气。`,
-        `前往 ${row.move[0]}，拍下第一张旅行明信片。`,
-        `在 ${row.eat[0]} 或附近餐饮点休息。`,
-        `到 ${row.shop[0]} 挑选书信、唱片、纪念品或明信片。`,
-        "整理照片、歌词与旅行感受，生成个人明信片。",
-      ],
+      route: sevenDayGuide(row),
       sources: [
         imageCredit,
         source("Google Maps 目的地公开检索", search.googleMaps(row.displayName)),
         source("小红书旅行攻略公开检索", search.xhs(`${row.displayName} 旅行 攻略 吃住行 购物`)),
         source("Agoda 住宿公开检索", search.agoda(row.displayName)),
+        ...(movieScenes[row.id] ? [source(movieScenes[row.id].label, movieScenes[row.id].url)] : []),
       ],
     };
   }

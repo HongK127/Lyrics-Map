@@ -1,24 +1,25 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>目的地攻略 · 陈绮贞歌词地图</title>
+  <title>目的地攻略 · Lyrics Map</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body class="web-app" data-page="destination">
   <header class="site-header">
-    <a class="site-mark" href="./index.html">Cheer Travel Atlas</a>
-    <p>Travel is meaningful</p>
+    <a class="site-mark" href="./index.html">Lyrics Map</a>
+    <p>Travel is Meaningful</p>
   </header>
 
   <main class="detail-shell">
     <nav class="side-nav" aria-label="功能导航">
-      <a href="./index.html">地图总览</a>
-      <a class="active" href="./guides.html">目的地攻略</a>
-      <a href="./songs.html">歌曲收录</a>
-      <a href="./postcard.html">制作明信片</a>
-      <a href="./ai.html">AI旅行歌单</a>
+      <a href="./index.html"><span class="nav-icon">🗺️</span><span>地图总览</span></a>
+      <a class="active" href="./guides.html"><span class="nav-icon">🧭</span><span>目的地攻略</span></a>
+      <a href="./songs.html"><span class="nav-icon">💿</span><span>歌曲收录</span></a>
+      <a href="./postcard.html"><span class="nav-icon">✉️</span><span>制作明信片</span></a>
+      <a href="./planner.html"><span class="nav-icon">🎒</span><span>行程规划表</span></a>
+      <a href="./ai.html"><span class="nav-icon">🎧</span><span>AI旅行歌单</span></a>
     </nav>
 
     <article class="journal-page">
@@ -39,21 +40,98 @@
           <div id="localMap"></div>
         </div>
         <div class="pin-legend">
-          <span class="pin eat">吃</span>
-          <span class="pin stay">住</span>
-          <span class="pin move">行</span>
-          <span class="pin shop">购物</span>
+          <span class="pin eat"><span>🍜</span>吃</span>
+          <span class="pin stay"><span>🏨</span>住</span>
+          <span class="pin move"><span>🚇</span>行</span>
+          <span class="pin shop"><span>🛍</span>购物</span>
+          <span class="pin user"><span>＋</span>用户添加</span>
         </div>
       </section>
 
       <section class="recommendation-board" data-recommendation-board></section>
 
+      <section class="custom-guide-panel" data-custom-guide-panel>
+        <div class="panel-title">
+          <h2>我的攻略</h2>
+          <span data-custom-guide-status>保存在当前浏览器</span>
+        </div>
+        <form class="guide-edit-form" data-custom-guide-form novalidate>
+          <label>分类
+            <select data-custom-section>
+              <option value="eat">吃</option>
+              <option value="stay">住</option>
+              <option value="move">行</option>
+              <option value="shop">购物</option>
+              <option value="reading">阅读</option>
+              <option value="route">路线</option>
+            </select>
+          </label>
+          <label>名称<input type="text" data-custom-title placeholder="店名、书名或路线标题"></label>
+          <label>作者 / 区域<input type="text" data-custom-author placeholder="阅读作者、路线区域或补充标签"></label>
+          <label class="form-wide">说明<textarea data-custom-body placeholder="为什么想放进这份攻略"></textarea></label>
+          <label class="form-wide">来源链接<input type="url" data-custom-url placeholder="https://"></label>
+          <label>纬度<input type="number" step="0.000001" data-custom-lat placeholder="48.8567"></label>
+          <label>经度<input type="number" step="0.000001" data-custom-lng placeholder="2.3508"></label>
+          <button type="submit">添加到我的攻略</button>
+        </form>
+      </section>
+
+      <section class="reading-panel">
+        <div class="panel-title">
+          <h2>适合带去读的书</h2>
+          <span><button type="button" class="inline-panel-action" data-preset-guide-section="reading">添加阅读</button></span>
+        </div>
+        <div class="reading-grid" data-reading-list></div>
+      </section>
+
+      <section class="movie-panel">
+        <div class="panel-title">
+          <h2>电影场景</h2>
+          <span>Mocation 可视化链接</span>
+        </div>
+        <div data-movie-scene></div>
+      </section>
+
       <section class="route-panel">
         <div class="panel-title">
           <h2>旅行路线</h2>
-          <span>歌词巡礼手账</span>
+          <span><button type="button" class="inline-panel-action" data-preset-guide-section="route">添加路线</button></span>
         </div>
         <ol data-route-list></ol>
+      </section>
+
+      <section class="hidden-guide-panel" data-hidden-guide-panel hidden>
+        <div class="panel-title">
+          <h2>已隐藏的官方内容</h2>
+          <span>只影响我的攻略</span>
+        </div>
+        <div class="hidden-guide-list" data-hidden-guide-list></div>
+      </section>
+
+      <section class="contribution-panel">
+        <div class="panel-title">
+          <h2>目的地攻略投稿</h2>
+          <span data-destination-contribution-status>提交后立即预览，标记待收录</span>
+        </div>
+        <form class="guide-edit-form" data-destination-contribution-form novalidate>
+          <label>投稿类型
+            <select data-contribution-section>
+              <option value="eat">吃</option>
+              <option value="stay">住</option>
+              <option value="move">行</option>
+              <option value="shop">购物</option>
+              <option value="reading">阅读</option>
+              <option value="route">路线</option>
+            </select>
+          </label>
+          <label>名称<input type="text" data-contribution-title placeholder="想推荐的地点、书或路线"></label>
+          <label>作者 / 区域<input type="text" data-contribution-author placeholder="可选"></label>
+          <label class="form-wide">说明<textarea data-contribution-body placeholder="补充推荐理由、歌词关联或核验说明"></textarea></label>
+          <label class="form-wide">来源链接<input type="url" data-contribution-url placeholder="https://"></label>
+          <label>纬度<input type="number" step="0.000001" data-contribution-lat placeholder="可选"></label>
+          <label>经度<input type="number" step="0.000001" data-contribution-lng placeholder="可选"></label>
+          <button type="submit">提交攻略投稿</button>
+        </form>
       </section>
 
       <section class="source-board">
@@ -68,6 +146,6 @@
 
   <script src="/config.js?v=amap-20260502"></script>
   <script src="./data.js"></script>
-  <script src="./app.js?v=amap-fallback-20260502"></script>
+  <script src="./app.js?v=lyrics-map-20260507"></script>
 </body>
 </html>

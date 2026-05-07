@@ -1,29 +1,30 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>陈绮贞歌词地图 · Web 原型</title>
+  <title>Lyrics Map · Web 原型</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body class="web-app" data-page="home">
   <header class="site-header">
-    <a class="site-mark" href="./index.html">Cheer Travel Atlas</a>
-    <p>Travel is meaningful</p>
+    <a class="site-mark" href="./index.html">Lyrics Map</a>
+    <p>Travel is Meaningful</p>
   </header>
 
   <main class="home-shell">
     <nav class="side-nav" aria-label="功能导航">
-      <a class="active" href="./index.html">地图总览</a>
-      <a href="./guides.html">目的地攻略</a>
-      <a href="./songs.html">歌曲收录</a>
-      <a href="./postcard.html">制作明信片</a>
-      <a href="./ai.html">AI旅行歌单</a>
+      <a class="active" href="./index.html"><span class="nav-icon">🗺️</span><span>地图总览</span></a>
+      <a href="./guides.html"><span class="nav-icon">🧭</span><span>目的地攻略</span></a>
+      <a href="./songs.html"><span class="nav-icon">💿</span><span>歌曲收录</span></a>
+      <a href="./postcard.html"><span class="nav-icon">✉️</span><span>制作明信片</span></a>
+      <a href="./planner.html"><span class="nav-icon">🎒</span><span>行程规划表</span></a>
+      <a href="./ai.html"><span class="nav-icon">🎧</span><span>AI旅行歌单</span></a>
     </nav>
 
     <section class="map-workspace" aria-label="歌词旅行地图">
       <div class="travel-shelf" aria-hidden="true">
-        <span>MAP</span><span>BOOK</span><span>AIR MAIL</span><span>STAMP</span>
+        <span>🗺️ MAP</span><span>📖 BOOK</span><span>✈️ AIR MAIL</span><span>🏷️ STAMP</span>
       </div>
       <div class="map-tools">
         <label class="search-box">
@@ -47,12 +48,13 @@
       <p data-postcard-intro>点击地图上的地点标记查看明信片。</p>
       <blockquote data-postcard-lyric>你品尝了夜的巴黎</blockquote>
       <a class="primary-link" data-postcard-link href="./destination.html?id=paris">打开局部地图与攻略</a>
+      <div data-postcard-movie></div>
       <p class="source-line" data-postcard-source></p>
     </aside>
   </main>
 
   <script src="/config.js?v=amap-20260502"></script>
   <script src="./data.js"></script>
-  <script src="./app.js?v=amap-fallback-20260502"></script>
+  <script src="./app.js?v=lyrics-map-20260507"></script>
 </body>
 </html>

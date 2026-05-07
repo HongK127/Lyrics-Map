@@ -1,0 +1,107 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>行程规划表 · Lyrics Map</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="web-app" data-page="planner">
+  <header class="site-header">
+    <a class="site-mark" href="./index.html">Lyrics Map</a>
+    <p>Travel is Meaningful</p>
+  </header>
+
+  <main class="planner-shell">
+    <nav class="side-nav" aria-label="功能导航">
+      <a href="./index.html"><span class="nav-icon">🗺️</span><span>地图总览</span></a>
+      <a href="./guides.html"><span class="nav-icon">🧭</span><span>目的地攻略</span></a>
+      <a href="./songs.html"><span class="nav-icon">💿</span><span>歌曲收录</span></a>
+      <a href="./postcard.html"><span class="nav-icon">✉️</span><span>制作明信片</span></a>
+      <a class="active" href="./planner.html"><span class="nav-icon">🎒</span><span>行程规划表</span></a>
+      <a href="./ai.html"><span class="nav-icon">🎧</span><span>AI旅行歌单</span></a>
+    </nav>
+
+    <section class="planner-panel">
+      <div class="archive-head">
+        <p class="eyebrow">travel notebook</p>
+        <h1>旅行手帐工作台</h1>
+        <p>自己写行程、住宿、购物、账单、备忘和打包清单。这里不自动塞满建议，只给你一张可以慢慢填的旅行纸页。</p>
+      </div>
+
+      <div class="planner-controls">
+        <label>目的地<select data-plan-destination></select></label>
+        <label>出发日期<input type="date" data-plan-start></label>
+        <label>天数<input type="number" min="1" max="14" value="3" data-plan-days></label>
+        <button type="button" data-plan-generate>生成空白页</button>
+        <button type="button" data-plan-export>导出 CSV</button>
+        <button type="button" data-plan-print>打印</button>
+      </div>
+
+      <div class="planner-preview" data-plan-preview></div>
+      <div class="planner-workbench">
+        <section class="planner-table-card">
+          <div class="panel-title">
+            <h2>行程规划</h2>
+            <span>每格都可以直接填写</span>
+          </div>
+          <div class="planner-table-wrap" data-plan-table></div>
+        </section>
+
+        <aside class="planner-side-stack">
+          <section class="ledger-card">
+            <div class="panel-title">
+              <h2>记账</h2>
+              <span data-budget-total>合计 ¥0</span>
+            </div>
+            <div class="ledger-list" data-ledger-list></div>
+            <button type="button" class="paper-button" data-add-ledger>添加账单</button>
+          </section>
+
+          <section class="memo-card">
+            <div class="panel-title">
+              <h2>备忘</h2>
+              <span>链接 / 文字 / 清单 / 照片</span>
+            </div>
+            <div class="memo-tabs">
+              <button type="button" class="active" data-memo-filter="all">全部</button>
+              <button type="button" data-memo-filter="攻略">🧭 攻略</button>
+              <button type="button" data-memo-filter="拍照">📸 拍照</button>
+              <button type="button" data-memo-filter="物品">🎒 物品</button>
+              <button type="button" data-memo-filter="阅读">📚 阅读</button>
+            </div>
+            <div class="memo-paste">
+              <input type="url" placeholder="粘贴小红书、豆瓣、地图或任意链接" data-memo-url>
+              <button type="button" data-add-link-memo>生成预览</button>
+            </div>
+            <div class="memo-actions">
+              <button type="button" class="memo-sort" data-memo-sort>排序：最新</button>
+              <div class="memo-create-menu">
+                <button type="button" class="paper-button" data-add-memo>＋ 新建</button>
+                <div class="memo-type-menu" aria-label="新建备忘类型">
+                  <button type="button" data-add-memo-type="text">文字</button>
+                  <button type="button" data-add-memo-type="checklist">清单</button>
+                  <button type="button" data-add-memo-type="photo">照片灵感</button>
+                </div>
+              </div>
+            </div>
+            <div class="memo-list" data-memo-list></div>
+          </section>
+
+          <section class="packing-card">
+            <div class="panel-title">
+              <h2>打包清单</h2>
+              <span>出发前勾选</span>
+            </div>
+            <div class="packing-grid" data-packing-list></div>
+            <button type="button" class="paper-button packing-add-group" data-add-packing-group>新增分类</button>
+          </section>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="./data.js"></script>
+  <script src="./app.js?v=lyrics-map-20260507"></script>
+</body>
+</html>

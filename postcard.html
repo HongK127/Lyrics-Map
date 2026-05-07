@@ -1,23 +1,24 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>制作明信片 · 陈绮贞歌词地图</title>
+  <title>制作明信片 · Lyrics Map</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body class="web-app" data-page="postcard">
   <header class="site-header">
-    <a class="site-mark" href="./index.html">Cheer Travel Atlas</a>
-    <p>Travel is meaningful</p>
+    <a class="site-mark" href="./index.html">Lyrics Map</a>
+    <p>Travel is Meaningful</p>
   </header>
   <main class="postcard-maker-shell">
     <nav class="side-nav" aria-label="功能导航">
-      <a href="./index.html">地图总览</a>
-      <a href="./guides.html">目的地攻略</a>
-      <a href="./songs.html">歌曲收录</a>
-      <a class="active" href="./postcard.html">制作明信片</a>
-      <a href="./ai.html">AI旅行歌单</a>
+      <a href="./index.html"><span class="nav-icon">🗺️</span><span>地图总览</span></a>
+      <a href="./guides.html"><span class="nav-icon">🧭</span><span>目的地攻略</span></a>
+      <a href="./songs.html"><span class="nav-icon">💿</span><span>歌曲收录</span></a>
+      <a class="active" href="./postcard.html"><span class="nav-icon">✉️</span><span>制作明信片</span></a>
+      <a href="./planner.html"><span class="nav-icon">🎒</span><span>行程规划表</span></a>
+      <a href="./ai.html"><span class="nav-icon">🎧</span><span>AI旅行歌单</span></a>
     </nav>
     <section class="maker-form">
       <p class="eyebrow">air mail studio</p>
@@ -26,6 +27,10 @@
       <label>选择目的地<select data-postcard-destination></select></label>
       <label>写下当时的感受<textarea data-postcard-text>把歌词落在地图上，也把这一天寄给未来的自己。</textarea></label>
       <p class="source-line">图片仅在浏览器本地预览，不会上传。</p>
+      <div class="postcard-actions">
+        <button type="button" data-export-postcard="png">导出 PNG</button>
+        <button type="button" data-export-postcard="pdf">导出 PDF</button>
+      </div>
     </section>
     <section class="custom-postcard" data-custom-postcard>
       <img data-custom-image alt="明信片图片预览">
@@ -36,6 +41,6 @@
     </section>
   </main>
   <script src="./data.js"></script>
-  <script src="./app.js?v=amap-fallback-20260502"></script>
+  <script src="./app.js?v=lyrics-map-20260507"></script>
 </body>
 </html>
