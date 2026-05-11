@@ -1,5 +1,5 @@
-const { destinations, songs, continents } = window.CHEER_TRAVEL_DATA;
-const byId = new Map(destinations.map((item) => [item.id, item]));
+let { destinations, songs, continents } = window.CHEER_TRAVEL_DATA;
+let byId = new Map(destinations.map((item) => [item.id, item]));
 const defaultConfig = {
   amap: {
     key: "04efa1e90d297891156539a4bd788c48",
@@ -20,10 +20,52 @@ const aiConfig = config.ai || {};
 
 let activeContinent = "all";
 let activeQuery = "";
+let guideArchiveQuery = "";
+let songArchiveQuery = "";
 let homeMap;
 let homeMarkers = [];
 let AMapRuntime;
 let AMapScriptPromise;
+let songRouteMap;
+let songRouteMarkers = [];
+
+async function apiJson(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+      ...(options.headers || {}),
+    },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `请求失败：${response.status}`);
+  return data;
+}
+
+async function postJson(url, body) {
+  return apiJson(url, { method: "POST", body: JSON.stringify(body) });
+}
+
+async function uploadFile(file) {
+  if (!file) return null;
+  const form = new FormData();
+  form.append("file", file);
+  return apiJson("/api/uploads", { method: "POST", body: form });
+}
+
+async function loadBootstrapData() {
+  if (!location.protocol.startsWith("http")) return;
+  try {
+    const data = await apiJson("/api/bootstrap");
+    destinations = data.destinations || destinations;
+    songs = data.songs || songs;
+    continents = data.continents || continents;
+    byId = new Map(destinations.map((item) => [item.id, item]));
+    window.CHEER_TRAVEL_DATA = { ...window.CHEER_TRAVEL_DATA, ...data };
+  } catch (error) {
+    console.warn("Using embedded prototype data:", error.message);
+  }
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -92,6 +134,9 @@ const contributionState = {
   items: [],
 };
 let localMapInstance;
+let activeGuidePackageId = "";
+const geocodeCacheStorageKey = "lyrics-map-geocode-cache-v1";
+let geocodeCache;
 
 function userContentId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -138,7 +183,7 @@ function normalizeCustomGuideItem(item) {
 }
 
 function normalizeContributionItem(item) {
-  const type = item?.type === "song" ? "song" : "destination";
+  const type = item?.type === "song" ? "song" : item?.type === "guide-package" ? "guide-package" : "destination";
   if (type === "song") {
     return {
       id: item?.id || userContentId("contribution"),
@@ -148,8 +193,20 @@ function normalizeContributionItem(item) {
       album: String(item?.album || "").trim(),
       places: Array.isArray(item?.places) ? item.places.map((place) => String(place || "").trim()).filter(Boolean) : [],
       lyric: String(item?.lyric || "").trim(),
+      notes: String(item?.notes || "").trim(),
       sourceUrl: safeExternalUrl(item?.sourceUrl),
+      coverUploadUrl: safeExternalUrl(item?.coverUploadUrl),
       status: item?.status || "待收录",
+      createdAt: Number(item?.createdAt) || Date.now(),
+    };
+  }
+  if (type === "guide-package") {
+    return {
+      id: item?.id || userContentId("contribution"),
+      type,
+      destinationId: item?.destinationId || item?.package?.destinationId || "",
+      status: item?.status || "待审核",
+      package: item?.package || item?.guidePackage || null,
       createdAt: Number(item?.createdAt) || Date.now(),
     };
   }
@@ -239,7 +296,7 @@ function ensureAmapScript() {
     const params = new URLSearchParams({
       v: "2.0",
       key: amapConfig.key,
-      plugin: "AMap.Scale,AMap.ToolBar",
+      plugin: "AMap.Scale,AMap.ToolBar,AMap.Geocoder,AMap.PlaceSearch",
     });
     script.src = `https://webapi.amap.com/maps?${params.toString()}`;
     script.async = true;
@@ -280,14 +337,42 @@ function focusMap(map, item, zoom = 6) {
   map.setZoomAndCenter(item.isConceptPlace ? Math.min(zoom, 5) : zoom, mapPosition(item), false, 420);
 }
 
+function songsForDestination(item) {
+  if (!item) return [];
+  return songs.filter((song) => {
+    const places = song.places || [];
+    return places.some((place) =>
+      item.name === place ||
+      item.displayName.includes(place) ||
+      place.includes(item.name)
+    ) || (item.songs || []).includes(song.title);
+  });
+}
+
+function primarySongForDestination(item) {
+  return songsForDestination(item)[0] || null;
+}
+
+function destinationSearchText(item) {
+  const relatedSongs = songsForDestination(item)
+    .map((song) => [song.title, song.artist, song.album, song.lyric, song.notes, (song.places || []).join(" ")].join(" "))
+    .join(" ");
+  const guideText = [
+    ...Object.values(item.recommendations || {}).flat().map((row) => [row.name, row.area, row.reason, row.bestFor].join(" ")),
+    ...(item.readingRecommendations || []).map((book) => [book.title, book.author, book.note].join(" ")),
+    ...(item.route || []).map((step) => typeof step === "string" ? step : [step.title, step.area, step.morning, step.afternoon, step.evening, step.note].join(" ")),
+    ...(item.approvedGuides || []).map((row) => [row.name, row.title, row.author, row.area, row.body, row.reason].join(" ")),
+  ].join(" ");
+  return `${item.displayName} ${item.name} ${item.continent} ${(item.songs || []).join(" ")} ${(item.lyricLines || []).join(" ")} ${item.intro} ${relatedSongs} ${guideText}`.toLowerCase();
+}
+
 function visibleDestinations() {
   return destinations.filter((item) => {
     const continentOk =
       activeContinent === "all" ||
       item.continent === activeContinent ||
       (activeContinent === "意象" && item.isConceptPlace);
-    const haystack = `${item.displayName} ${item.continent} ${item.songs.join(" ")} ${item.lyricLines.join(" ")}`.toLowerCase();
-    return continentOk && haystack.includes(activeQuery);
+    return continentOk && destinationSearchText(item).includes(activeQuery);
   });
 }
 
@@ -325,14 +410,25 @@ function installFlightNavigation() {
 
 function updateHomePostcard(item) {
   if (!item) return;
+  const song = primarySongForDestination(item);
   setImage(document.querySelector("[data-postcard-image]"), item.postcardImage, `${item.displayName} 明信片`);
   document.querySelector("[data-postcard-title]").textContent = item.displayName;
   document.querySelector("[data-postcard-intro]").textContent = item.intro;
   document.querySelector("[data-postcard-lyric]").textContent = item.lyricLines[0] || "";
   document.querySelector("[data-postcard-link]").href = destinationUrl(item);
-  document.querySelector("[data-postcard-source]").innerHTML = `图片：${sourceLink(item.imageCredit)}`;
+  const sourceRows = [
+    `图片：${sourceLink(item.imageCredit) || "本地图片"}`,
+    song ? `歌词：${sourceLink(song.factSource) || escapeHtml(song.title)}` : "",
+    song ? `歌曲：${escapeHtml(song.title)} · ${escapeHtml(song.artist || "待补充歌手")}` : "",
+  ].filter(Boolean);
+  document.querySelector("[data-postcard-source]").innerHTML = sourceRows.join("<br>");
   const sceneSlot = document.querySelector("[data-postcard-movie]");
-  if (sceneSlot) sceneSlot.innerHTML = movieSceneCard(item);
+  if (sceneSlot) {
+    sceneSlot.innerHTML = [
+      movieSceneCard(item),
+      song ? `<a class="song-route-chip" href="./songs.html?song=${encodeURIComponent(song.id)}">查看一首歌的路径</a>` : "",
+    ].join("");
+  }
 }
 
 function continentById(id) {
@@ -370,12 +466,13 @@ function renderHomeMarkers() {
 function renderHomeList() {
   const list = document.querySelector("[data-home-list]");
   if (!list) return;
-  list.innerHTML = visibleDestinations().map((item) => `
+  const rows = visibleDestinations();
+  list.innerHTML = rows.length ? rows.map((item) => `
     <button type="button" data-home-place="${item.id}">
       <img src="${item.postcardImage}" alt="">
       <span>${escapeHtml(item.name)}</span>
     </button>
-  `).join("");
+  `).join("") : `<p class="empty-inline">没有找到相关地点、歌曲或歌词。</p>`;
   list.querySelectorAll("[data-home-place]").forEach((button) => {
     button.addEventListener("click", () => {
       const item = byId.get(button.dataset.homePlace);
@@ -460,7 +557,13 @@ function guideDateLabel(value) {
 
 function userGuideAction(entry) {
   if (entry.origin === "official") {
-    return `<button type="button" class="text-action" data-hide-guide-item="${escapeHtml(entry.id)}">隐藏到我的攻略</button>`;
+    return `
+      <button type="button" class="text-action" data-copy-guide-item="${escapeHtml(entry.id)}">复制到我的攻略</button>
+      <button type="button" class="text-action" data-hide-guide-item="${escapeHtml(entry.id)}">隐藏</button>
+    `;
+  }
+  if (entry.origin === "approved" || entry.origin === "submission") {
+    return `<span class="guide-lock-note">已收录投稿</span>`;
   }
   return `<button type="button" class="text-action danger" data-delete-user-guide="${escapeHtml(entry.id)}" data-user-guide-source="${entry.origin === "contribution" ? "contribution" : "custom"}">删除</button>`;
 }
@@ -468,14 +571,25 @@ function userGuideAction(entry) {
 function officialRecommendationRows(item, kind) {
   return (item.recommendations[kind] || []).map((row, index) => ({
     ...row,
-    id: officialGuideId(item.id, kind, index),
+    id: row.id || officialGuideId(item.id, kind, index),
     origin: "official",
     section: kind,
+    locked: true,
+    curatorLabel: row.curatorLabel || "创作者倾情制作",
   }));
 }
 
 function customRecommendationRows(item, kind) {
-  return userGuideEntries(item, kind).map((entry) => ({
+  const approved = (item.approvedGuides || [])
+    .filter((entry) => entry.section === kind)
+    .map((entry) => ({
+      ...entry,
+      origin: entry.origin === "submission" ? "approved" : entry.origin,
+      bestFor: "已收录投稿",
+      verification: entry.verification || "用户投稿已通过审核；公开收录前已做基础核验。",
+      source: entry.source || { sourceName: "用户投稿来源", sourceUrl: entry.sourceUrl },
+    }));
+  return [...approved, ...userGuideEntries(item, kind).map((entry) => ({
     id: entry.id,
     origin: entry.origin,
     section: kind,
@@ -490,7 +604,7 @@ function customRecommendationRows(item, kind) {
       sourceName: entry.origin === "contribution" ? "用户投稿来源" : "用户添加来源",
       sourceUrl: entry.sourceUrl,
     },
-  }));
+  }))];
 }
 
 function renderRecommendations(item) {
@@ -508,7 +622,7 @@ function renderRecommendations(item) {
         ...customRecommendationRows(item, kind),
       ].map((row) => `
         <article class="${row.origin === "official" ? "" : "user-guide-entry"}">
-          ${row.origin === "contribution" ? contributionBadge() : row.origin === "custom" ? contributionBadge("用户添加") : ""}
+          ${row.origin === "official" ? contributionBadge(row.curatorLabel || "创作者倾情制作") : row.origin === "contribution" ? contributionBadge() : row.origin === "custom" ? contributionBadge("用户添加") : contributionBadge("已收录投稿")}
           <strong>${escapeHtml(row.name)}</strong>
           <p class="guide-area">${escapeHtml(row.area)}</p>
           <p>${escapeHtml(row.reason)}</p>
@@ -542,11 +656,21 @@ function renderReadingRecommendations(item) {
     },
     createdAt: entry.createdAt,
   }));
-  const books = [...officialBooks.filter((book) => !isHiddenGuide(book.id)), ...userBooks];
+  const approvedBooks = (item.approvedGuides || [])
+    .filter((entry) => entry.section === "reading")
+    .map((entry) => ({
+      id: entry.id,
+      origin: "approved",
+      title: entry.name || entry.title || "投稿读物",
+      author: entry.author || "用户投稿",
+      note: entry.body || entry.reason || "用户投稿已通过审核。",
+      source: entry.source,
+    }));
+  const books = [...officialBooks.filter((book) => !isHiddenGuide(book.id)), ...approvedBooks, ...userBooks];
   list.innerHTML = books.length
     ? books.map((book) => `
       <article class="reading-card ${book.origin === "official" ? "" : "user-guide-entry"}">
-        <span class="reading-mark">${book.origin === "contribution" ? "投稿" : book.origin === "custom" ? "我的" : "READ"}</span>
+        <span class="reading-mark">${book.origin === "official" ? "官方" : book.origin === "approved" ? "收录" : book.origin === "contribution" ? "投稿" : "我的"}</span>
         <h3>《${escapeHtml(book.title)}》</h3>
         <p class="reading-author">${escapeHtml(book.author)}</p>
         <p>${escapeHtml(book.note)}</p>
@@ -592,7 +716,21 @@ function renderRouteList(item) {
     note: entry.origin === "contribution" ? "这条路线已进入本地投稿预览。" : "这条路线保存在当前浏览器。",
     source: { sourceName: entry.origin === "contribution" ? "用户投稿来源" : "用户添加来源", sourceUrl: entry.sourceUrl },
   }));
-  list.innerHTML = [...officialRoutes.filter((step) => !isHiddenGuide(step.id)), ...userRoutes].map((step) => {
+  const approvedRoutes = (item.approvedGuides || [])
+    .filter((entry) => entry.section === "route")
+    .map((entry) => ({
+      id: entry.id,
+      origin: "approved",
+      day: "收录",
+      title: entry.name || entry.title || "投稿路线",
+      area: entry.area || item.displayName,
+      morning: entry.body || entry.reason || "用户投稿路线已通过审核。",
+      afternoon: entry.lat !== null && entry.lng !== null ? `${entry.lat}, ${entry.lng}` : "未标记坐标",
+      evening: "已收录投稿",
+      note: entry.verification || "出发前仍建议打开来源核验。",
+      source: entry.source,
+    }));
+  list.innerHTML = [...officialRoutes.filter((step) => !isHiddenGuide(step.id)), ...approvedRoutes, ...userRoutes].map((step) => {
     if (typeof step === "string") return `<li>${escapeHtml(step)}</li>`;
     return `
       <li class="route-day-card ${step.origin === "official" ? "" : "user-guide-entry"}">
@@ -638,6 +776,11 @@ function renderHiddenGuides(item) {
   const panel = document.querySelector("[data-hidden-guide-panel]");
   const list = document.querySelector("[data-hidden-guide-list]");
   if (!panel || !list) return;
+  if (!activeGuidePackage(item)) {
+    panel.hidden = true;
+    list.innerHTML = "";
+    return;
+  }
   const rows = hiddenOfficialRows(item);
   panel.hidden = rows.length === 0;
   list.innerHTML = rows.map((row) => `
@@ -689,7 +832,18 @@ function localMapPins(item) {
         note: entry.body || (entry.origin === "contribution" ? "用户投稿 / 待收录" : "用户添加"),
       }))
   );
-  return [...officialPins, ...userPins];
+  const approvedPins = (item.approvedGuides || [])
+    .filter((entry) => entry.lat !== null && entry.lng !== null)
+    .map((entry) => ({
+      kind: ["eat", "stay", "move", "shop"].includes(entry.section) ? entry.section : "user",
+      origin: "approved",
+      name: entry.name || entry.title,
+      lat: entry.lat,
+      lng: entry.lng,
+      sourceUrl: entry.source?.sourceUrl,
+      note: entry.body || entry.reason || "已收录投稿",
+    }));
+  return [...officialPins, ...approvedPins, ...userPins];
 }
 
 async function renderLocalMap(item) {
@@ -747,13 +901,471 @@ async function renderLocalMap(item) {
   infoWindow.open(map, mapPosition(item));
 }
 
+function hasCoordinates(row) {
+  return Number.isFinite(Number(row?.lat)) && Number.isFinite(Number(row?.lng));
+}
+
+function loadGeocodeCache() {
+  if (geocodeCache) return geocodeCache;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(geocodeCacheStorageKey) || "{}");
+    geocodeCache = parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    geocodeCache = {};
+  }
+  return geocodeCache;
+}
+
+function saveGeocodeCache() {
+  try {
+    localStorage.setItem(geocodeCacheStorageKey, JSON.stringify(loadGeocodeCache()));
+  } catch {
+    // Map rendering should not fail when storage is unavailable.
+  }
+}
+
+function cachedGeocode(key) {
+  const cached = loadGeocodeCache()[key];
+  if (!cached) return null;
+  const lat = Number(cached.lat);
+  const lng = Number(cached.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng, source: cached.source || "cache" } : null;
+}
+
+function setCachedGeocode(key, value) {
+  loadGeocodeCache()[key] = {
+    lat: Number(value.lat.toFixed(6)),
+    lng: Number(value.lng.toFixed(6)),
+    source: value.source || "amap-geocoder",
+    cachedAt: new Date().toISOString(),
+  };
+  saveGeocodeCache();
+}
+
+function geocodeQuery(item, row) {
+  return [item.displayName, row.name || row.title, row.area]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function geocodeWithAmap(AMap, address, city) {
+  return new Promise((resolve) => {
+    if (!AMap?.Geocoder || !address) {
+      resolve(null);
+      return;
+    }
+    const geocoder = new AMap.Geocoder({ city: city || "全国" });
+    geocoder.getLocation(address, (status, result) => {
+      const location = result?.geocodes?.[0]?.location;
+      if (status === "complete" && location) {
+        resolve({ lat: Number(location.lat), lng: Number(location.lng), source: "amap-geocoder" });
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+function placeSearchWithAmap(AMap, keyword, city) {
+  return new Promise((resolve) => {
+    if (!AMap?.PlaceSearch || !keyword) {
+      resolve(null);
+      return;
+    }
+    const searcher = new AMap.PlaceSearch({
+      city: city || "全国",
+      citylimit: false,
+      pageSize: 1,
+      pageIndex: 1,
+    });
+    searcher.search(keyword, (status, result) => {
+      const location = result?.poiList?.pois?.[0]?.location;
+      if (status === "complete" && location) {
+        resolve({ lat: Number(location.lat), lng: Number(location.lng), source: "amap-place-search" });
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+async function resolveGuideRowPosition(AMap, item, row) {
+  if (row.origin !== "official" && hasCoordinates(row)) {
+    return { lat: Number(row.lat), lng: Number(row.lng), source: "user" };
+  }
+  const key = `${item.id}:${row.section || ""}:${row.name || row.title || ""}`;
+  const cached = cachedGeocode(key);
+  if (cached) return cached;
+
+  const query = geocodeQuery(item, row);
+  const resolved =
+    await placeSearchWithAmap(AMap, query, item.name) ||
+    await geocodeWithAmap(AMap, query, item.name);
+  if (resolved && Number.isFinite(resolved.lat) && Number.isFinite(resolved.lng)) {
+    setCachedGeocode(key, resolved);
+    return resolved;
+  }
+  if (hasCoordinates(row)) return { lat: Number(row.lat), lng: Number(row.lng), source: "fallback" };
+  return null;
+}
+
+function guidePackageStatusLabel(pkg) {
+  if (pkg.status === "pending") return "待审核投稿攻略";
+  if (pkg.status === "rejected") return "已拒绝";
+  if (pkg.origin === "official") return "官方攻略 · 创作者倾情制作";
+  if (pkg.origin === "custom") return "本地预览";
+  return "用户投稿攻略";
+}
+
+function normalizeGuidePackageRows(rows = [], section, item, origin = "submission") {
+  return (Array.isArray(rows) ? rows : []).map((row, index) => {
+    const meta = customGuideMeta[["eat", "stay", "move", "shop", "reading"].includes(section) ? section : "route"];
+    const name = row.name || row.title || `${meta.label}节点`;
+    return {
+      ...row,
+      id: row.id || `${origin}:${item.id}:${section}:${index}`,
+      destinationId: item.id,
+      section,
+      origin,
+      name,
+      title: row.title || name,
+      author: row.author || "",
+      area: row.area || row.author || `${item.displayName} · ${name}`,
+      body: row.body || row.note || row.reason || row.description || "",
+      reason: row.reason || row.body || row.note || row.description || "",
+      bestFor: row.bestFor || row.best_for || "",
+      verification: row.verification || (origin === "official" ? "官方完整攻略内容，出发前建议打开来源再次确认。" : "用户投稿内容，公开收录前需审核。"),
+      source: row.source || { sourceName: row.sourceName || "用户投稿来源", sourceUrl: row.sourceUrl || "" },
+      lat: hasCoordinates(row) ? Number(row.lat) : null,
+      lng: hasCoordinates(row) ? Number(row.lng) : null,
+    };
+  });
+}
+
+function officialGuidePackage(item) {
+  const eat = officialRecommendationRows(item, "eat");
+  const stay = officialRecommendationRows(item, "stay");
+  const move = officialRecommendationRows(item, "move");
+  const shop = officialRecommendationRows(item, "shop");
+  const reading = (item.readingRecommendations || [])
+    .map((book, index) => ({
+      ...book,
+      id: officialGuideId(item.id, "reading", index),
+      name: book.title,
+      title: book.title,
+      section: "reading",
+      origin: "official",
+      body: book.note,
+      reason: book.note,
+      locked: true,
+      curatorLabel: "创作者倾情制作",
+    }));
+  const sevenDayRoute = (item.route || []).map((step, index) => {
+    if (typeof step === "string") {
+      return {
+        id: officialGuideId(item.id, "route", index),
+        origin: "official",
+        section: "sevenDayRoute",
+        day: index + 1,
+        title: step,
+        area: item.displayName,
+        morning: step,
+        afternoon: "",
+        evening: "",
+        note: "",
+        source: null,
+      };
+    }
+    return { ...step, id: officialGuideId(item.id, "route", index), origin: "official", section: "sevenDayRoute" };
+  });
+  return {
+    id: `official:${item.id}:complete`,
+    destinationId: item.id,
+    title: `${item.name}完整旅行攻略`,
+    coverImage: item.postcardImage,
+    origin: "official",
+    status: "approved",
+    locked: true,
+    curatorLabel: "创作者倾情制作",
+    summary: item.intro,
+    sections: { eat, stay, move, shop, reading, sevenDayRoute },
+  };
+}
+
+function approvedGuidePackages(item) {
+  const groups = new Map();
+  (item.approvedGuides || []).forEach((entry) => {
+    const source = entry.source || {};
+    const packageId = source.packageId || source._packageId || `approved:${item.id}:legacy`;
+    if (!groups.has(packageId)) {
+      groups.set(packageId, {
+        id: packageId,
+        destinationId: item.id,
+        title: source.packageTitle || `${item.name}用户投稿完整攻略`,
+        coverImage: source.packageCover || item.postcardImage,
+        origin: "submission",
+        status: "approved",
+        locked: false,
+        curatorLabel: "用户投稿攻略",
+        summary: source.packageSummary || "审核通过的完整攻略投稿。",
+        sections: { eat: [], stay: [], move: [], shop: [], reading: [], sevenDayRoute: [] },
+      });
+    }
+    const pkg = groups.get(packageId);
+    const routeKind = source.routeKind || (entry.section === "route" ? "sevenDayRoute" : entry.section);
+    const section = pkg.sections[routeKind] ? routeKind : entry.section;
+    if (pkg.sections[section]) pkg.sections[section].push({ ...entry, origin: "approved", source });
+  });
+  return [...groups.values()];
+}
+
+function customGuidePackages(item) {
+  return contributionState.items
+    .filter((entry) => entry.type === "guide-package" && entry.destinationId === item.id && entry.package)
+    .map((entry) => {
+      const pkg = entry.package || {};
+      const sections = pkg.sections || {};
+      return {
+        id: pkg.id || entry.id,
+        destinationId: item.id,
+        title: pkg.title || `${item.name}投稿完整攻略`,
+        coverImage: pkg.coverImage || item.postcardImage,
+        origin: "custom",
+        status: pkg.status || "pending",
+        locked: false,
+        curatorLabel: "用户投稿攻略",
+        summary: pkg.summary || "",
+        contributor: pkg.contributor || "",
+        sourceUrl: pkg.sourceUrl || "",
+        sections: {
+          eat: normalizeGuidePackageRows(sections.eat, "eat", item, "submission"),
+          stay: normalizeGuidePackageRows(sections.stay, "stay", item, "submission"),
+          move: normalizeGuidePackageRows(sections.move, "move", item, "submission"),
+          shop: normalizeGuidePackageRows(sections.shop, "shop", item, "submission"),
+          reading: normalizeGuidePackageRows(sections.reading, "reading", item, "submission"),
+          sevenDayRoute: normalizeGuidePackageRows(sections.sevenDayRoute, "sevenDayRoute", item, "submission"),
+        },
+      };
+    });
+}
+
+function guidePackagesForDestination(item) {
+  return [officialGuidePackage(item), ...approvedGuidePackages(item), ...customGuidePackages(item)];
+}
+
+function activeGuidePackage(item) {
+  const packages = guidePackagesForDestination(item);
+  if (!activeGuidePackageId) return null;
+  return packages.find((pkg) => pkg.id === activeGuidePackageId) || null;
+}
+
+function guideSectionRows(pkg, section) {
+  return pkg?.sections?.[section] || [];
+}
+
+function renderDestinationGuideArchive(item) {
+  const archive = document.querySelector("[data-guide-archive]");
+  if (!archive) return;
+  const packages = guidePackagesForDestination(item);
+  const current = activeGuidePackage(item);
+  archive.innerHTML = `
+    <div class="panel-title">
+      <h2>攻略归档</h2>
+      <button type="button" class="inline-panel-action" data-open-guide-drawer>投稿</button>
+    </div>
+    <div class="guide-package-grid">
+      ${packages.map((pkg) => `
+        <button type="button" class="guide-package-card ${current && pkg.id === current.id ? "active" : ""}" data-guide-package="${escapeHtml(pkg.id)}">
+          <img class="guide-package-thumb" src="${escapeHtml(pkg.coverImage || item.postcardImage)}" alt="">
+          <strong>${escapeHtml(pkg.title)}</strong>
+          <em>${escapeHtml(guidePackageStatusLabel(pkg))}</em>
+          <span class="guide-package-summary">${escapeHtml(pkg.summary || "吃住行购物、路线与阅读整合在同一份攻略里。")}</span>
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+renderRecommendations = function(item, pkg = activeGuidePackage(item)) {
+  const board = document.querySelector("[data-recommendation-board]");
+  if (!board) return;
+  if (!pkg) {
+    board.innerHTML = "";
+    return;
+  }
+  const order = ["eat", "stay", "move", "shop"];
+  board.innerHTML = order.map((kind) => {
+    const rows = guideSectionRows(pkg, kind);
+    return `
+      <section class="guide-card ${kind}">
+        <div class="guide-card-head">
+          <h3><span>${customGuideMeta[kind].icon}</span>${customGuideMeta[kind].label}</h3>
+        </div>
+        ${rows.length ? rows.map((row) => `
+          <article class="${row.origin === "official" ? "" : "user-guide-entry"}">
+            ${row.origin === "official" ? contributionBadge(row.curatorLabel || "创作者倾情制作") : contributionBadge(row.origin === "approved" ? "已收录投稿" : "用户投稿 / 待审核")}
+            <strong>${escapeHtml(row.name)}</strong>
+            <p class="guide-area">${escapeHtml(row.area)}</p>
+            <p>${escapeHtml(row.reason || row.body)}</p>
+            <small class="guide-fit">${escapeHtml(row.bestFor)}</small>
+            <small>${escapeHtml(row.verification)}</small>
+            ${hasCoordinates(row) ? "" : `<small class="unmapped-note">未标点</small>`}
+            ${sourceChip(row.source?.sourceUrl, row.source?.sourceName)}
+          </article>
+        `).join("") : `<p class="source-line">这份攻略暂未填写${customGuideMeta[kind].label}内容。</p>`}
+      </section>
+    `;
+  }).join("");
+};
+
+renderReadingRecommendations = function(item, pkg = activeGuidePackage(item)) {
+  const list = document.querySelector("[data-reading-list]");
+  if (!list) return;
+  if (!pkg) {
+    list.innerHTML = "";
+    return;
+  }
+  const books = guideSectionRows(pkg, "reading");
+  list.innerHTML = books.length
+    ? books.map((book) => `
+      <article class="reading-card ${book.origin === "official" ? "" : "user-guide-entry"}">
+        <span class="reading-mark">${book.origin === "official" ? "官方" : book.origin === "approved" ? "收录" : "投稿"}</span>
+        <h3>《${escapeHtml(book.title || book.name)}》</h3>
+        <p class="reading-author">${escapeHtml(book.author)}</p>
+        <p>${escapeHtml(book.note || book.body || book.reason)}</p>
+        ${sourceChip(book.source?.sourceUrl, book.source?.sourceName)}
+      </article>
+    `).join("")
+    : `<p class="source-line">这份攻略暂未填写阅读推荐。</p>`;
+};
+
+renderRouteList = function(item, pkg = activeGuidePackage(item)) {
+  const list = document.querySelector("[data-route-list]");
+  if (!list) return;
+  if (!pkg) {
+    list.innerHTML = "";
+    return;
+  }
+  const sevenDay = guideSectionRows(pkg, "sevenDayRoute").map((step, index) => ({
+    ...step,
+    day: step.day || index + 1,
+    title: step.title || step.name || `Day ${index + 1}`,
+    area: step.area || item.displayName,
+    morning: step.morning || step.body || step.reason || "",
+    afternoon: step.afternoon || "",
+    evening: step.evening || "",
+    note: step.note || step.reason || "",
+  }));
+  const routes = sevenDay;
+  list.innerHTML = routes.length ? routes.map((step) => `
+    <li class="route-day-card ${step.origin === "official" ? "" : "user-guide-entry"}">
+      <div class="route-day-head">
+        <span>Day ${escapeHtml(step.day)}</span>
+        <h3>${escapeHtml(step.title)}</h3>
+      </div>
+      <p class="route-area">${escapeHtml(step.area)}</p>
+      <div class="route-day-grid">
+        <p><strong>上午</strong>${escapeHtml(step.morning)}</p>
+        <p><strong>下午</strong>${escapeHtml(step.afternoon)}</p>
+        <p><strong>晚上</strong>${escapeHtml(step.evening)}</p>
+      </div>
+      <p class="route-note">${escapeHtml(step.note)}</p>
+      ${sourceChip(step.source?.sourceUrl, step.source?.sourceName)}
+    </li>
+  `).join("") : `<li class="source-line">这份攻略暂未填写路线。</li>`;
+};
+
+localMapPins = async function(AMap, item, pkg = activeGuidePackage(item)) {
+  if (!pkg) return [];
+  const sections = ["eat", "stay", "move", "shop"];
+  const rows = sections.flatMap((kind) => guideSectionRows(pkg, kind)
+    .map((row) => ({ ...row, section: row.section || kind, pinKind: kind })));
+  const resolved = await Promise.all(rows.map(async (row) => {
+    const position = await resolveGuideRowPosition(AMap, item, row);
+    if (!position) return null;
+    return {
+      kind: row.origin === "official" ? row.pinKind : "user",
+      origin: row.origin,
+      name: row.name,
+      lat: position.lat,
+      lng: position.lng,
+      sourceUrl: row.source?.sourceUrl,
+      note: row.reason || row.body,
+      coordinateSource: position.source,
+    };
+  }));
+  return resolved.filter(Boolean);
+};
+
+renderLocalMap = async function(item, pkg = activeGuidePackage(item)) {
+  const mapEl = document.getElementById("localMap");
+  if (!mapEl) return;
+
+  let AMap;
+  try {
+    AMap = await loadAmap();
+  } catch (error) {
+    showMapSetup(mapEl, `${error.message}；地图加载失败时仍可查看下方攻略内容。`);
+    return;
+  }
+
+  if (localMapInstance?.destroy) localMapInstance.destroy();
+  mapEl.innerHTML = "";
+  const map = new AMap.Map(mapEl, {
+    viewMode: "2D",
+    zoom: item.isConceptPlace ? 5 : 12,
+    center: mapPosition(item),
+    resizeEnable: true,
+    mapStyle: amapConfig.style || "amap://styles/macaron",
+  });
+  localMapInstance = map;
+  map.addControl(new AMap.Scale());
+  map.addControl(new AMap.ToolBar({ position: "RB" }));
+  const infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -20) });
+  const pins = await localMapPins(AMap, item, pkg);
+  const markers = pins.map((pin) => {
+    const marker = new AMap.Marker({
+      position: [pin.lng, pin.lat],
+      content: localPinContent(pin.kind),
+      offset: new AMap.Pixel(-15, -15),
+    });
+    marker.on("click", () => {
+      const source = sourceChip(pin.sourceUrl, "打开来源");
+      infoWindow.setContent(`
+        <strong>${escapeHtml(pin.name)}</strong>
+        ${pin.origin === "official" ? "" : "<br><em>用户投稿</em>"}
+        <br><span>${escapeHtml(pin.note || "")}</span>
+        ${source ? `<br>${source}` : ""}
+      `);
+      infoWindow.open(map, marker.getPosition());
+    });
+    map.add(marker);
+    return marker;
+  });
+  if (markers.length) {
+    map.setFitView(markers, false, [48, 48, 48, 48]);
+  } else {
+    const centerMarker = new AMap.Marker({ position: mapPosition(item), title: item.displayName });
+    map.add(centerMarker);
+    infoWindow.setContent(`<strong>${escapeHtml(item.displayName)}</strong><br><span>这份攻略暂未填写可标点坐标。</span>`);
+    infoWindow.open(map, mapPosition(item));
+  }
+};
+
 function rerenderDestinationContent(item) {
-  renderMovieScene(item);
-  renderRecommendations(item);
-  renderReadingRecommendations(item);
-  renderRouteList(item);
+  const pkg = activeGuidePackage(item);
+  renderDestinationGuideArchive(item);
+  document.querySelectorAll("[data-guide-content]").forEach((section) => {
+    section.hidden = !pkg;
+  });
+  if (pkg) renderMovieScene(item);
+  renderRecommendations(item, pkg);
+  renderReadingRecommendations(item, pkg);
+  renderRouteList(item, pkg);
   renderHiddenGuides(item);
-  renderLocalMap(item);
+  renderLocalMap(item, pkg);
 }
 
 function setInlineStatus(selector, message) {
@@ -804,6 +1416,118 @@ function presetGuideSection(section) {
   document.querySelector("[data-custom-title]")?.focus();
 }
 
+function packageField(name) {
+  return document.querySelector(`[data-package-${name}]`);
+}
+
+function setGuideDrawerOpen(open) {
+  const drawer = document.querySelector("[data-guide-drawer]");
+  if (!drawer) return;
+  drawer.hidden = !open;
+  document.body.classList.toggle("drawer-open", open);
+  if (open) requestAnimationFrame(() => packageField("title")?.focus());
+}
+
+function parsePackagePointRows(value, section, item) {
+  return String(value || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const [name, area, reason, sourceUrl, lat, lng] = line.split("|").map((part) => part.trim());
+      return {
+        id: userContentId(`${section}-${index}`),
+        destinationId: item.id,
+        section,
+        name: name || `${customGuideMeta[section].label}节点 ${index + 1}`,
+        area: area || item.displayName,
+        reason: reason || "",
+        body: reason || "",
+        bestFor: "用户投稿完整攻略",
+        verification: "待审核投稿内容，公开前由管理员核验。",
+        source: { sourceName: "用户投稿来源", sourceUrl: safeExternalUrl(sourceUrl) },
+        lat: cleanNumber(lat, -90, 90),
+        lng: cleanNumber(lng, -180, 180),
+      };
+    });
+}
+
+function parsePackageReadingRows(value, item) {
+  return String(value || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const [title, author, note, sourceUrl] = line.split("|").map((part) => part.trim());
+      return {
+        id: userContentId(`reading-${index}`),
+        destinationId: item.id,
+        section: "reading",
+        title: title || `阅读推荐 ${index + 1}`,
+        name: title || `阅读推荐 ${index + 1}`,
+        author: author || "",
+        note: note || "",
+        body: note || "",
+        reason: note || "",
+        source: { sourceName: "用户投稿来源", sourceUrl: safeExternalUrl(sourceUrl) },
+      };
+    });
+}
+
+function parsePackageRouteRows(value, section, item) {
+  return String(value || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const [day, title, area, morning, afternoon, evening, note, sourceUrl, lat, lng] = line.split("|").map((part) => part.trim());
+      return {
+        id: userContentId(`${section}-${index}`),
+        destinationId: item.id,
+        section,
+        day: day || index + 1,
+        title: title || `Day ${index + 1}`,
+        name: title || `Day ${index + 1}`,
+        area: area || item.displayName,
+        morning: morning || "",
+        afternoon: afternoon || "",
+        evening: evening || "",
+        note: note || "",
+        reason: note || "",
+        source: { sourceName: "用户投稿来源", sourceUrl: safeExternalUrl(sourceUrl) },
+        lat: cleanNumber(lat, -90, 90),
+        lng: cleanNumber(lng, -180, 180),
+      };
+    });
+}
+
+async function guidePackageFromContributionForm(item) {
+  const coverInput = packageField("cover");
+  const upload = coverInput?.files?.[0] ? await uploadFile(coverInput.files[0]) : null;
+  const title = String(packageField("title")?.value || `${item.name}投稿完整攻略`).trim();
+  return {
+    id: userContentId("guide-package"),
+    destinationId: item.id,
+    title,
+    coverImage: upload?.url || item.postcardImage,
+    origin: "custom",
+    status: "pending",
+    locked: false,
+    curatorLabel: "用户投稿攻略",
+    contributor: String(packageField("contributor")?.value || "").trim(),
+    summary: String(packageField("summary")?.value || "").trim(),
+    sourceUrl: safeExternalUrl(packageField("source-url")?.value),
+    sections: {
+      eat: parsePackagePointRows(packageField("eat")?.value, "eat", item),
+      stay: parsePackagePointRows(packageField("stay")?.value, "stay", item),
+      move: parsePackagePointRows(packageField("move")?.value, "move", item),
+      shop: parsePackagePointRows(packageField("shop")?.value, "shop", item),
+      reading: parsePackageReadingRows(packageField("reading")?.value, item),
+      sevenDayRoute: parsePackageRouteRows(packageField("seven-day-route")?.value, "sevenDayRoute", item),
+    },
+  };
+}
+
 function initDestinationInteractions(item) {
   if (document.body.dataset.destinationInteractionsBound) return;
   document.body.dataset.destinationInteractionsBound = "true";
@@ -819,7 +1543,35 @@ function initDestinationInteractions(item) {
     rerenderDestinationContent(current);
   });
 
-  document.querySelector("[data-destination-contribution-form]")?.addEventListener("submit", (event) => {
+  document.querySelector("[data-destination-contribution-form]")?.addEventListener("submit", async (event) => {
+    if (!packageField("title")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const current = getCurrentDestination();
+    try {
+      const guidePackage = await guidePackageFromContributionForm(current);
+      const submitted = await postJson("/api/submissions/guide", guidePackage);
+      const localPackage = { ...guidePackage, id: submitted.id || guidePackage.id, status: "pending" };
+      contributionState.items.unshift(normalizeContributionItem({
+        id: submitted.id || guidePackage.id,
+        type: "guide-package",
+        destinationId: current.id,
+        status: "待审核",
+        package: localPackage,
+        createdAt: Date.now(),
+      }));
+      activeGuidePackageId = localPackage.id;
+      saveContributions();
+      guideForm("contribution")?.reset();
+      setGuideDrawerOpen(false);
+      setInlineStatus("[data-destination-contribution-status]", "已提交完整攻略审核，当前以待审核卡片预览");
+      rerenderDestinationContent(current);
+    } catch (error) {
+      setInlineStatus("[data-destination-contribution-status]", `提交失败：${error.message}`);
+    }
+  }, true);
+
+  document.querySelector("[data-destination-contribution-form]")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const current = getCurrentDestination();
     const entry = {
@@ -828,17 +1580,83 @@ function initDestinationInteractions(item) {
       type: "destination",
       status: "待收录",
     };
-    contributionState.items.unshift(normalizeContributionItem(entry));
-    saveContributions();
-    resetGuideForm("contribution");
-    setInlineStatus("[data-destination-contribution-status]", "已提交，正在以待收录状态预览");
-    rerenderDestinationContent(current);
+    try {
+      const submitted = await postJson("/api/submissions/guide", {
+        destinationId: entry.destinationId,
+        section: entry.section,
+        title: entry.title,
+        author: entry.author,
+        body: entry.body,
+        sourceUrl: entry.sourceUrl,
+        lat: entry.lat,
+        lng: entry.lng,
+      });
+      entry.id = submitted.id || entry.id;
+      contributionState.items.unshift(normalizeContributionItem(entry));
+      saveContributions();
+      resetGuideForm("contribution");
+      setInlineStatus("[data-destination-contribution-status]", "已提交审核，当前以待收录状态预览");
+      rerenderDestinationContent(current);
+    } catch (error) {
+      setInlineStatus("[data-destination-contribution-status]", `提交失败：${error.message}`);
+    }
   });
 
   document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-open-guide-drawer]")) {
+      setGuideDrawerOpen(true);
+      return;
+    }
+
+    if (event.target.closest("[data-close-guide-drawer]")) {
+      setGuideDrawerOpen(false);
+      return;
+    }
+
+    const guidePackageButton = event.target.closest("[data-guide-package]");
+    if (guidePackageButton) {
+      activeGuidePackageId = guidePackageButton.dataset.guidePackage;
+      rerenderDestinationContent(getCurrentDestination());
+      return;
+    }
+
     const preset = event.target.closest("[data-preset-guide-section]");
     if (preset) {
       presetGuideSection(preset.dataset.presetGuideSection);
+      return;
+    }
+
+    const copy = event.target.closest("[data-copy-guide-item]");
+    if (copy) {
+      const current = getCurrentDestination();
+      const allOfficial = [
+        ...["eat", "stay", "move", "shop"].flatMap((section) => officialRecommendationRows(current, section)),
+        ...(current.readingRecommendations || []).map((book, index) => ({
+          id: officialGuideId(current.id, "reading", index),
+          section: "reading",
+          name: book.title,
+          area: book.author,
+          reason: book.note,
+          source: book.source,
+        })),
+      ];
+      const row = allOfficial.find((item) => item.id === copy.dataset.copyGuideItem);
+      if (row) {
+        customGuideState.items.unshift(normalizeCustomGuideItem({
+          destinationId: current.id,
+          section: row.section,
+          title: row.name,
+          author: row.area,
+          body: row.reason,
+          sourceUrl: row.source?.sourceUrl,
+          lat: row.lat,
+          lng: row.lng,
+          createdAt: Date.now(),
+        }));
+        saveCustomGuides();
+        setInlineStatus("[data-custom-guide-status]", "已复制到我的攻略，可以继续改写");
+        rerenderDestinationContent(current);
+      }
       return;
     }
 
@@ -872,6 +1690,10 @@ function initDestinationInteractions(item) {
     }
   });
 
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setGuideDrawerOpen(false);
+  });
+
   document.querySelectorAll("[data-custom-lat], [data-contribution-lat]").forEach((input) => {
     input.placeholder = String(item.lat);
   });
@@ -898,9 +1720,25 @@ function initDestination() {
 function initGuides() {
   const list = document.querySelector("[data-guides-list]");
   if (!list) return;
-  const groups = [...new Set(destinations.map((item) => item.continent))];
+  const search = document.querySelector("[data-guides-search]");
+  search?.addEventListener("input", (event) => {
+    guideArchiveQuery = event.target.value.trim().toLowerCase();
+    renderGuidesArchive();
+  });
+  renderGuidesArchive();
+}
+
+renderGuidesArchive = function() {
+  const list = document.querySelector("[data-guides-list]");
+  if (!list) return;
+  const filtered = destinations.filter((item) => destinationSearchText(item).includes(guideArchiveQuery));
+  if (!filtered.length) {
+    list.innerHTML = `<div class="archive-empty">没有找到相关目的地、攻略或歌词。</div>`;
+    return;
+  }
+  const groups = [...new Set(filtered.map((item) => item.continent))];
   list.innerHTML = groups.map((continent) => {
-    const rows = destinations.filter((item) => item.continent === continent);
+    const rows = filtered.filter((item) => item.continent === continent);
     return `
       <section class="continent-group">
         <div class="panel-title">
@@ -914,6 +1752,43 @@ function initGuides() {
               <div>
                 <strong>${escapeHtml(item.displayName)}</strong>
                 <p>${escapeHtml(item.intro)}</p>
+                <small>官方完整攻略 · 创作者倾情制作</small>
+                <small>${escapeHtml(item.lyricLines[0] || "")}</small>
+                ${movieSceneCard(item, true)}
+              </div>
+            </a>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }).join("");
+};
+
+function renderGuidesArchive() {
+  const list = document.querySelector("[data-guides-list]");
+  if (!list) return;
+  const filtered = destinations.filter((item) => destinationSearchText(item).includes(guideArchiveQuery));
+  if (!filtered.length) {
+    list.innerHTML = `<div class="archive-empty">没有找到相关目的地、攻略或歌词。</div>`;
+    return;
+  }
+  const groups = [...new Set(filtered.map((item) => item.continent))];
+  list.innerHTML = groups.map((continent) => {
+    const rows = filtered.filter((item) => item.continent === continent);
+    return `
+      <section class="continent-group">
+        <div class="panel-title">
+          <h2>${escapeHtml(continent)}</h2>
+          <span>${rows.length} places</span>
+        </div>
+        <div class="guide-grid">
+          ${rows.map((item) => `
+            <a class="guide-tile" href="${destinationUrl(item)}">
+              <img src="${item.postcardImage}" alt="">
+              <div>
+                <strong>${escapeHtml(item.displayName)}</strong>
+                <p>${escapeHtml(item.intro)}</p>
+                <small>官方完整攻略 · 创作者倾情制作</small>
                 <small>${escapeHtml(item.lyricLines[0] || "")}</small>
                 ${movieSceneCard(item, true)}
               </div>
@@ -933,22 +1808,25 @@ function parsePlaces(value) {
 }
 
 function renderSongCard(song, origin = "official") {
-  const sourceUrl = origin === "official" ? song.factSource?.sourceUrl : song.sourceUrl;
-  const sourceLabel = origin === "official" ? "事实来源" : "用户投稿来源";
+  const isPublic = origin === "official" || origin === "approved";
+  const sourceUrl = isPublic ? song.factSource?.sourceUrl : song.sourceUrl;
+  const sourceLabel = isPublic ? "事实来源" : "用户投稿来源";
+  const routePlaces = song.places || [];
   return `
     <article class="song-card ${origin === "official" ? "" : "user-song-card"}">
-      <img src="${escapeHtml(song.localCover || song.cover || "./assets/journal/stamp-sheet.jpg")}" alt="${escapeHtml(song.album || "歌曲投稿")} 封面">
+      <img src="${escapeHtml(song.coverUploadUrl || song.localCover || song.cover || "./assets/journal/stamp-sheet.jpg")}" alt="${escapeHtml(song.album || "歌曲投稿")} 封面">
       <div>
-        ${origin === "official" ? "" : contributionBadge()}
+        ${origin === "official" ? "" : contributionBadge(origin === "approved" ? "已收录投稿" : "用户投稿 / 待审核")}
         <p class="eyebrow">${escapeHtml(song.artist || "待补充歌手")}</p>
         <h2>${escapeHtml(song.title || "未命名歌曲")}</h2>
         <p class="album-name">${escapeHtml(song.album || "待补充专辑 / 来源")}</p>
         <blockquote>${escapeHtml(song.lyric || "暂未填写歌词片段。")}</blockquote>
         <p>${escapeHtml(song.notes || (origin === "official" ? "" : "这条歌曲投稿保存在当前浏览器，公开收录前仍需核验。"))}</p>
-        <div class="tag-row">${(song.places || []).map((place) => `<span>${escapeHtml(place)}</span>`).join("")}</div>
+        <div class="tag-row">${routePlaces.map((place) => `<span>${escapeHtml(place)}</span>`).join("")}</div>
+        ${routePlaces.length ? `<button type="button" class="inline-panel-action song-route-button" data-song-route="${escapeHtml(song.id)}">查看一首歌的路径</button>` : ""}
         <div class="song-sources">
           ${sourceChip(sourceUrl, sourceLabel)}
-          ${origin === "official" ? sourceChip(song.coverSource?.sourceUrl, song.coverSource?.pending ? "封面待核验" : "封面来源") : `<button type="button" class="text-action danger" data-delete-song-contribution="${escapeHtml(song.id)}">删除投稿</button>`}
+          ${isPublic ? sourceChip(song.coverSource?.sourceUrl, song.coverSource?.pending ? "封面待核验" : "封面来源") : `<button type="button" class="text-action danger" data-delete-song-contribution="${escapeHtml(song.id)}">删除投稿</button>`}
         </div>
       </div>
     </article>
@@ -961,40 +1839,136 @@ function renderSongList() {
   const songContributions = contributionState.items
     .filter((entry) => entry.type === "song")
     .sort((a, b) => b.createdAt - a.createdAt);
-  grid.innerHTML = [
-    ...songContributions.map((song) => renderSongCard(song, "contribution")),
-    ...songs.map((song) => renderSongCard(song, "official")),
-  ].join("");
+  const query = songArchiveQuery;
+  const matches = (song) => [song.title, song.artist, song.album, song.lyric, song.notes, (song.places || []).join(" ")]
+    .join(" ")
+    .toLowerCase()
+    .includes(query);
+  const rows = [
+    ...songContributions.filter(matches).map((song) => renderSongCard(song, "contribution")),
+    ...songs.filter(matches).map((song) => renderSongCard(song, song.origin === "submission" ? "approved" : "official")),
+  ];
+  grid.innerHTML = rows.length ? rows.join("") : `<div class="archive-empty">没有找到相关歌曲、歌手、歌词或目的地。</div>`;
+}
+
+function destinationForSongPlace(place) {
+  return destinations.find((item) =>
+    item.name === place ||
+    item.displayName.includes(place) ||
+    place.includes(item.name)
+  );
+}
+
+async function renderSongRoute(song) {
+  const panel = document.querySelector("[data-song-route-panel]");
+  if (!panel || !song) return;
+  const routeDestinations = (song.places || []).map(destinationForSongPlace).filter(Boolean);
+  panel.hidden = false;
+  panel.innerHTML = `
+    <div class="panel-title">
+      <h2>${escapeHtml(song.title)} · 一首歌的路径</h2>
+      <span>${routeDestinations.length} 个地点</span>
+    </div>
+    <div class="song-route-layout">
+      <div class="song-route-copy">
+        <p>${escapeHtml(song.artist || "待补充歌手")} / ${escapeHtml(song.album || "待补充来源")}</p>
+        <blockquote>${escapeHtml(song.lyric || "暂未填写歌词片段。")}</blockquote>
+        <ol>
+          ${routeDestinations.map((item) => `<li><a href="${destinationUrl(item)}">${escapeHtml(item.displayName)}</a><small>${escapeHtml(item.lyricLines?.[0] || "")}</small></li>`).join("")}
+        </ol>
+      </div>
+      <div class="song-route-map" id="songRouteMap"></div>
+    </div>
+  `;
+  if (!routeDestinations.length) return;
+  try {
+    const AMap = await loadAmap();
+    if (songRouteMap?.destroy) songRouteMap.destroy();
+    songRouteMap = new AMap.Map("songRouteMap", {
+      viewMode: "2D",
+      zoom: 3,
+      center: mapPosition(routeDestinations[0]),
+      resizeEnable: true,
+      mapStyle: amapConfig.style || "amap://styles/macaron",
+    });
+    songRouteMarkers = routeDestinations.map((item, index) => new AMap.Marker({
+      position: mapPosition(item),
+      content: `<div class="song-route-pin"><span>${index + 1}</span>${escapeHtml(item.name)}</div>`,
+      offset: new AMap.Pixel(-18, -34),
+    }));
+    songRouteMap.add(songRouteMarkers);
+    if (routeDestinations.length > 1) {
+      const polyline = new AMap.Polyline({
+        path: routeDestinations.map(mapPosition),
+        strokeColor: "#b34c3c",
+        strokeWeight: 4,
+        strokeOpacity: 0.78,
+      });
+      songRouteMap.add(polyline);
+      songRouteMap.setFitView([...songRouteMarkers, polyline], false, [42, 42, 42, 42]);
+    } else {
+      focusMap(songRouteMap, routeDestinations[0], 6);
+    }
+  } catch (error) {
+    document.getElementById("songRouteMap").innerHTML = `<div class="map-empty"><strong>歌曲路线地图暂未显示</strong><span>${escapeHtml(error.message)}</span></div>`;
+  }
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function initSongs() {
+  const search = document.querySelector("[data-song-search]");
+  search?.addEventListener("input", (event) => {
+    songArchiveQuery = event.target.value.trim().toLowerCase();
+    renderSongList();
+  });
   renderSongList();
+  const selectedSongId = new URLSearchParams(window.location.search).get("song");
+  if (selectedSongId) {
+    const selected = songs.find((song) => song.id === selectedSongId);
+    if (selected) window.setTimeout(() => renderSongRoute(selected), 120);
+  }
   const form = document.querySelector("[data-song-contribution-form]");
   if (form && !form.dataset.bound) {
     form.dataset.bound = "true";
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const entry = normalizeContributionItem({
-        id: userContentId("contribution"),
-        type: "song",
-        title: document.querySelector("[data-song-title]")?.value || "",
-        artist: document.querySelector("[data-song-artist]")?.value || "",
-        album: document.querySelector("[data-song-album]")?.value || "",
-        places: parsePlaces(document.querySelector("[data-song-places]")?.value || ""),
-        lyric: document.querySelector("[data-song-lyric]")?.value || "",
-        sourceUrl: document.querySelector("[data-song-source-url]")?.value || "",
-        status: "待收录",
-        createdAt: Date.now(),
-      });
-      contributionState.items.unshift(entry);
-      saveContributions();
-      form.reset();
-      setInlineStatus("[data-song-contribution-status]", "已提交，正在以待收录状态预览");
-      renderSongList();
+      try {
+        const cover = await uploadFile(document.querySelector("[data-song-cover]")?.files?.[0]);
+        const entry = normalizeContributionItem({
+          id: userContentId("contribution"),
+          type: "song",
+          title: document.querySelector("[data-song-title]")?.value || "",
+          artist: document.querySelector("[data-song-artist]")?.value || "",
+          album: document.querySelector("[data-song-album]")?.value || "",
+          places: parsePlaces(document.querySelector("[data-song-places]")?.value || ""),
+          lyric: document.querySelector("[data-song-lyric]")?.value || "",
+          notes: "这条歌曲投稿已进入审核队列。",
+          sourceUrl: document.querySelector("[data-song-source-url]")?.value || "",
+          coverUploadUrl: cover?.url || "",
+          status: "待审核",
+          createdAt: Date.now(),
+        });
+        const submitted = await postJson("/api/submissions/song", entry);
+        entry.id = submitted.id || entry.id;
+        contributionState.items.unshift(entry);
+        saveContributions();
+        form.reset();
+        setInlineStatus("[data-song-contribution-status]", "已提交审核，正在以待收录状态预览");
+        renderSongList();
+      } catch (error) {
+        setInlineStatus("[data-song-contribution-status]", `提交失败：${error.message}`);
+      }
     });
   }
 
   document.addEventListener("click", (event) => {
+    const route = event.target.closest("[data-song-route]");
+    if (route) {
+      const song = [...songs, ...contributionState.items.filter((entry) => entry.type === "song")]
+        .find((item) => item.id === route.dataset.songRoute);
+      renderSongRoute(song);
+      return;
+    }
     const remove = event.target.closest("[data-delete-song-contribution]");
     if (!remove) return;
     contributionState.items = contributionState.items.filter((entry) => entry.id !== remove.dataset.deleteSongContribution);
@@ -1126,9 +2100,9 @@ async function canvasJpegBytes(canvas) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-function makeImagePdf(jpegBytes, imageWidth, imageHeight) {
+function makeImagesPdf(pages) {
   const pageWidth = 720;
-  const pageHeight = Math.round((imageHeight / imageWidth) * pageWidth);
+  const pageHeights = pages.map((page) => Math.round((page.height / page.width) * pageWidth));
   const encoder = new TextEncoder();
   const chunks = [];
   const offsets = [];
@@ -1145,26 +2119,98 @@ function makeImagePdf(jpegBytes, imageWidth, imageHeight) {
 
   addString("%PDF-1.4\n");
   addObject(1, "<< /Type /Catalog /Pages 2 0 R >>");
-  addObject(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
-  addObject(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);
-  offsets[4] = offset;
-  addString(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imageWidth} /Height ${imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`);
-  addBytes(jpegBytes);
-  addString("\nendstream\nendobj\n");
-  const content = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im0 Do\nQ`;
-  addObject(5, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  const pageObjectIds = pages.map((_, index) => 3 + index * 3);
+  addObject(2, `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`);
+  pages.forEach((page, index) => {
+    const pageId = 3 + index * 3;
+    const imageId = pageId + 1;
+    const contentId = pageId + 2;
+    const pageHeight = pageHeights[index];
+    addObject(pageId, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im${index} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    offsets[imageId] = offset;
+    addString(`${imageId} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.bytes.length} >>\nstream\n`);
+    addBytes(page.bytes);
+    addString("\nendstream\nendobj\n");
+    const content = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im${index} Do\nQ`;
+    addObject(contentId, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
 
   const xrefOffset = offset;
-  addString("xref\n0 6\n0000000000 65535 f \n");
-  for (let i = 1; i <= 5; i += 1) addString(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
-  addString(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+  const objectCount = 3 + pages.length * 3;
+  addString(`xref\n0 ${objectCount}\n0000000000 65535 f \n`);
+  for (let i = 1; i < objectCount; i += 1) addString(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
+  addString(`trailer\n<< /Size ${objectCount} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
   return new Blob(chunks, { type: "application/pdf" });
 }
 
+function makeImagePdf(jpegBytes, imageWidth, imageHeight) {
+  return makeImagesPdf([{ bytes: jpegBytes, width: imageWidth, height: imageHeight }]);
+}
+
+async function renderPostcardBackCanvas() {
+  const recipient = document.querySelector("[data-postcard-recipient]")?.value || "未来的自己";
+  const address = document.querySelector("[data-postcard-address]")?.value || "把这一天寄回记忆里";
+  const message = document.querySelector("[data-postcard-back-message]")?.value || "愿地图、歌词和路上的风都替我保存这一刻。";
+  const signature = document.querySelector("[data-postcard-signature]")?.value || "Lyrics Map";
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 1600;
+  canvas.height = 1200;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fbf7ec";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(49, 95, 127, .06)";
+  for (let y = 86; y < 1110; y += 58) ctx.fillRect(96, y, 1408, 2);
+  ctx.strokeStyle = "rgba(46, 41, 34, .28)";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(72, 72, 1456, 1056);
+  ctx.beginPath();
+  ctx.moveTo(800, 128);
+  ctx.lineTo(800, 1072);
+  ctx.stroke();
+
+  ctx.fillStyle = "#b34c3c";
+  ctx.font = "700 58px Arial, 'Noto Sans SC', sans-serif";
+  ctx.fillText("POSTCARD", 108, 166);
+  ctx.font = "28px Arial, 'Noto Sans SC', sans-serif";
+  ctx.fillText("LYRICS MAP · AIR MAIL", 110, 212);
+
+  ctx.fillStyle = "#5f4438";
+  ctx.font = "38px Georgia, 'Noto Serif SC', serif";
+  drawWrappedText(ctx, message, 112, 310, 610, 58, 8);
+  ctx.font = "34px Arial, 'Noto Sans SC', sans-serif";
+  ctx.fillText(`— ${signature}`, 112, 956);
+
+  ctx.strokeStyle = "#b34c3c";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(1190, 128, 220, 160);
+  ctx.font = "700 30px Arial, sans-serif";
+  ctx.fillStyle = "#b34c3c";
+  ctx.fillText("STAMP", 1248, 218);
+
+  ctx.fillStyle = "#315f7f";
+  ctx.font = "700 36px Arial, 'Noto Sans SC', sans-serif";
+  ctx.fillText(`To: ${recipient}`, 858, 396);
+  ctx.font = "30px Arial, 'Noto Sans SC', sans-serif";
+  drawWrappedText(ctx, address, 858, 470, 560, 48, 4);
+  ctx.strokeStyle = "rgba(49, 95, 127, .45)";
+  for (let y = 552; y <= 850; y += 74) {
+    ctx.beginPath();
+    ctx.moveTo(858, y);
+    ctx.lineTo(1420, y);
+    ctx.stroke();
+  }
+  return canvas;
+}
+
 async function downloadPostcardPdf() {
-  const canvas = await renderPostcardCanvas();
-  const jpegBytes = await canvasJpegBytes(canvas);
-  downloadBlob(makeImagePdf(jpegBytes, canvas.width, canvas.height), "travel-postcard.pdf");
+  const front = await renderPostcardCanvas();
+  const back = await renderPostcardBackCanvas();
+  const pages = [
+    { bytes: await canvasJpegBytes(front), width: front.width, height: front.height },
+    { bytes: await canvasJpegBytes(back), width: back.width, height: back.height },
+  ];
+  downloadBlob(makeImagesPdf(pages), "travel-postcard.pdf");
 }
 
 function initPostcard() {
@@ -1174,6 +2220,12 @@ function initPostcard() {
   const lyric = document.querySelector("[data-custom-lyric]");
   const text = document.querySelector("[data-custom-text]");
   const textarea = document.querySelector("[data-postcard-text]");
+  const backFields = [
+    "[data-postcard-recipient]",
+    "[data-postcard-address]",
+    "[data-postcard-back-message]",
+    "[data-postcard-signature]",
+  ];
   if (!select || !image) return;
 
   select.innerHTML = destinations.map((item) => `<option value="${item.id}">${escapeHtml(item.displayName)}</option>`).join("");
@@ -1184,6 +2236,10 @@ function initPostcard() {
     title.textContent = item.displayName;
     lyric.textContent = item.lyricLines[0] || "";
     text.textContent = textarea.value;
+    document.querySelector("[data-back-recipient]").textContent = document.querySelector("[data-postcard-recipient]")?.value || "未来的自己";
+    document.querySelector("[data-back-address]").textContent = document.querySelector("[data-postcard-address]")?.value || "把这一天寄回记忆里";
+    document.querySelector("[data-back-message]").textContent = document.querySelector("[data-postcard-back-message]")?.value || "愿地图、歌词和路上的风都替我保存这一刻。";
+    document.querySelector("[data-back-signature]").textContent = document.querySelector("[data-postcard-signature]")?.value || "Lyrics Map";
   }
 
   select.addEventListener("change", () => {
@@ -1191,6 +2247,7 @@ function initPostcard() {
     render();
   });
   textarea.addEventListener("input", render);
+  backFields.forEach((selector) => document.querySelector(selector)?.addEventListener("input", render));
   document.querySelector("[data-postcard-upload]").addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1461,14 +2518,33 @@ function createMemoFromUrl(value) {
     url,
     platform: meta.platform,
     tag: meta.tag,
+    image: meta.platform === "小红书" ? "./assets/journal/memo-board-ref.png" : "./assets/journal/folded-map.jpg",
   });
+}
+
+async function createMemoFromUrlWithPreview(value) {
+  const fallback = createMemoFromUrl(value);
+  if (!fallback) return null;
+  try {
+    const preview = await apiJson(`/api/link-preview?url=${encodeURIComponent(fallback.url)}`);
+    return createMemo("link", {
+      title: preview.title || fallback.title,
+      body: preview.description || fallback.body,
+      url: fallback.url,
+      platform: preview.platform || fallback.platform,
+      tag: preview.tag || fallback.tag,
+      image: preview.imageUrl || fallback.image,
+    });
+  } catch {
+    return fallback;
+  }
 }
 
 function defaultMemoItems() {
   return [
     createMemoFromUrl("https://www.xiaohongshu.com/search_result?keyword=%E6%97%85%E8%A1%8C%20%E6%89%8B%E5%B8%90"),
     createMemo("photo", {
-      title: "胶片拍照",
+      title: "照片灵感",
       body: "雨天街角、车窗、票根和一张可以贴进旅行日志的照片。",
       createdAt: Date.now() - 1,
     }),
@@ -1565,13 +2641,19 @@ function memoNoteBody(item) {
     const platform = item.platform || detectMemoPlatform(href).platform;
     return `
       <a class="memo-link-preview" href="${escapeHtml(href)}" target="_blank" rel="noreferrer">
-        <span class="memo-link-thumb">${escapeHtml(memoPlatformIcons[platform] || "↗")}</span>
+        <span class="memo-link-thumb">
+          ${item.image ? `<img src="${escapeHtml(item.image)}" alt="">` : escapeHtml(memoPlatformIcons[platform] || "↗")}
+        </span>
         <span>
           <strong>${escapeHtml(platform)}</strong>
           <small>${escapeHtml(memoHost(href))}</small>
           <em>${escapeHtml(href)}</em>
         </span>
       </a>
+      <label class="memo-upload">
+        <input type="file" accept="image/*" data-memo-link-image-upload>
+        <span>替换预览图</span>
+      </label>
       <textarea data-memo-field="body" placeholder="补充这个链接为什么值得收藏">${escapeHtml(item.body)}</textarea>
     `;
   }
@@ -1781,28 +2863,61 @@ function renderPlannerTable() {
   updateBudgetTotal();
 }
 
-function exportPlannerCsv() {
-  const cellText = (cell) => {
-    const formValues = [...cell.querySelectorAll("input, textarea")]
-      .map((field) => {
-        if (field.type === "checkbox") return field.checked ? field.closest("label")?.innerText.trim() : "";
-        return field.value.trim();
-      })
-      .filter(Boolean)
-      .join(" / ");
-    return [cell.innerText.trim(), formValues].filter(Boolean).join(" / ");
-  };
-  const rows = [...document.querySelectorAll(".itinerary-table tr")].map((tr) =>
-    [...tr.children].map((cell) => `"${cellText(cell).replaceAll('"', '""')}"`).join(",")
+async function exportPlannerPdf() {
+  syncPackingFromDom();
+  document.querySelectorAll(".memo-note").forEach(syncMemoFromCard);
+  const title = document.querySelector("[data-plan-destination]")?.selectedOptions?.[0]?.textContent || "旅行手帐";
+  const start = document.querySelector("[data-plan-start]")?.value || "未设置日期";
+  const rows = [...document.querySelectorAll(".itinerary-table tbody tr")].map((tr) =>
+    [...tr.children].map((cell) => cell.innerText.replace(/\s+/g, " ").trim()).filter(Boolean).join("  |  ")
   );
-  if (!rows.length) return;
-  const blob = new Blob([`\uFEFF${rows.join("\n")}`], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "travel-itinerary.csv";
-  link.click();
-  URL.revokeObjectURL(url);
+  const ledgers = [...document.querySelectorAll(".ledger-row")].map((row) =>
+    [...row.querySelectorAll("input")].map((input) => input.value.trim()).filter(Boolean).join(" ¥")
+  ).filter(Boolean);
+  const memos = memoState.items.map((item) => `${item.title}：${item.body || item.url || item.tag || ""}`);
+  const packing = packingState.groups.map((group) => `${group.title}：${group.items.map((item) => `${item.checked ? "✓" : "□"}${item.text}`).join(" / ")}`);
+  const lines = [
+    `目的地：${title}`,
+    `出发日期：${start}`,
+    "",
+    "行程规划",
+    ...rows,
+    "",
+    "记账",
+    ...(ledgers.length ? ledgers : ["暂无账单"]),
+    "",
+    "备忘",
+    ...(memos.length ? memos : ["暂无备忘"]),
+    "",
+    "打包清单",
+    ...(packing.length ? packing : ["暂无清单"]),
+  ];
+  const canvas = document.createElement("canvas");
+  canvas.width = 1600;
+  canvas.height = Math.max(1600, 260 + lines.length * 48);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fbf7ec";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(49, 95, 127, .06)";
+  for (let y = 0; y < canvas.height; y += 44) ctx.fillRect(0, y, canvas.width, 2);
+  ctx.fillStyle = "#b34c3c";
+  ctx.font = "700 66px Arial, 'Noto Sans SC', sans-serif";
+  ctx.fillText("Lyrics Map 旅行手帐", 88, 118);
+  ctx.fillStyle = "#5f4438";
+  ctx.font = "30px Arial, 'Noto Sans SC', sans-serif";
+  let y = 198;
+  lines.forEach((line) => {
+    if (!line) {
+      y += 28;
+      return;
+    }
+    const isHeading = ["行程规划", "记账", "备忘", "打包清单"].includes(line);
+    ctx.fillStyle = isHeading ? "#315f7f" : "#5f4438";
+    ctx.font = `${isHeading ? "700 38px" : "30px"} Arial, 'Noto Sans SC', sans-serif`;
+    y = drawWrappedText(ctx, line, 88, y, 1380, isHeading ? 54 : 44, isHeading ? 1 : 3) + (isHeading ? 10 : 4);
+  });
+  const jpegBytes = await canvasJpegBytes(canvas);
+  downloadBlob(makeImagePdf(jpegBytes, canvas.width, canvas.height), "travel-planner.pdf");
 }
 
 function initPlanner() {
@@ -1810,7 +2925,7 @@ function initPlanner() {
   if (!select) return;
   select.innerHTML = destinations.map((item) => `<option value="${item.id}">${escapeHtml(item.displayName)}</option>`).join("");
   document.querySelector("[data-plan-generate]")?.addEventListener("click", renderPlannerTable);
-  document.querySelector("[data-plan-export]")?.addEventListener("click", exportPlannerCsv);
+  document.querySelector("[data-plan-export]")?.addEventListener("click", exportPlannerPdf);
   document.querySelector("[data-plan-print]")?.addEventListener("click", () => window.print());
   document.querySelector("[data-add-ledger]")?.addEventListener("click", () => {
     document.querySelector("[data-ledger-list]")?.insertAdjacentHTML("beforeend", ledgerRow());
@@ -1820,15 +2935,18 @@ function initPlanner() {
     button.addEventListener("click", () => addMemoItem(createMemo(button.dataset.addMemoType)));
   });
   const memoUrlInput = document.querySelector("[data-memo-url]");
-  const addLinkMemo = () => {
-    const item = createMemoFromUrl(memoUrlInput?.value || "");
+  const addLinkMemo = async () => {
+    const item = await createMemoFromUrlWithPreview(memoUrlInput?.value || "");
     if (!item) return;
     addMemoItem(item);
     memoUrlInput.value = "";
   };
   document.querySelector("[data-add-link-memo]")?.addEventListener("click", addLinkMemo);
   memoUrlInput?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") addLinkMemo();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addLinkMemo();
+    }
   });
   memoUrlInput?.addEventListener("paste", () => window.setTimeout(addLinkMemo, 0));
   document.querySelectorAll("[data-memo-filter]").forEach((button) => {
@@ -1848,7 +2966,7 @@ function initPlanner() {
   });
   document.addEventListener("change", (event) => {
     if (event.target.closest("[data-packing-list]")) syncPackingFromDom();
-    const photoUpload = event.target.closest("[data-memo-photo-upload]");
+    const photoUpload = event.target.closest("[data-memo-photo-upload], [data-memo-link-image-upload]");
     if (photoUpload) {
       const card = photoUpload.closest(".memo-note");
       const item = memoState.items.find((memo) => memo.id === card?.dataset.memoId);
@@ -1959,8 +3077,9 @@ function initPlanner() {
   renderPlannerTable();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   installFlightNavigation();
+  await loadBootstrapData();
   loadUserContentState();
   const page = document.body.dataset.page;
   if (page === "home") initHome();

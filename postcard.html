@@ -26,10 +26,17 @@
       <label>上传旅行美景图片<input type="file" accept="image/*" data-postcard-upload></label>
       <label>选择目的地<select data-postcard-destination></select></label>
       <label>写下当时的感受<textarea data-postcard-text>把歌词落在地图上，也把这一天寄给未来的自己。</textarea></label>
+      <div class="postcard-back-fields">
+        <h2>明信片背面</h2>
+        <label>收件人<input type="text" data-postcard-recipient value="未来的自己"></label>
+        <label>地址线<input type="text" data-postcard-address value="把这一天寄回记忆里"></label>
+        <label>背面寄语<textarea data-postcard-back-message>愿地图、歌词和路上的风都替我保存这一刻。</textarea></label>
+        <label>落款<input type="text" data-postcard-signature value="Lyrics Map"></label>
+      </div>
       <p class="source-line">图片仅在浏览器本地预览，不会上传。</p>
       <div class="postcard-actions">
         <button type="button" data-export-postcard="png">导出 PNG</button>
-        <button type="button" data-export-postcard="pdf">导出 PDF</button>
+        <button type="button" data-export-postcard="pdf">导出正反面 PDF</button>
       </div>
     </section>
     <section class="custom-postcard" data-custom-postcard>
@@ -38,6 +45,18 @@
       <h2 data-custom-title></h2>
       <blockquote data-custom-lyric></blockquote>
       <p data-custom-text></p>
+      <div class="postcard-back-preview">
+        <div>
+          <strong>POSTCARD</strong>
+          <p data-back-message></p>
+          <small data-back-signature></small>
+        </div>
+        <div>
+          <span class="stamp-box">STAMP</span>
+          <p><b>To</b> <span data-back-recipient></span></p>
+          <p data-back-address></p>
+        </div>
+      </div>
     </section>
   </main>
   <script src="./data.js"></script>

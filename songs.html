@@ -27,7 +27,12 @@
         <p class="eyebrow">song module</p>
         <h1>歌曲、作品与地点关系</h1>
         <p>修正歌曲归属与封面来源；每张卡片保留事实来源、封面来源与关联目的地。</p>
+        <label class="search-box archive-search">
+          <span>搜索</span>
+          <input data-song-search type="search" placeholder="歌名 / 歌手 / 歌词 / 目的地" />
+        </label>
       </div>
+      <section class="song-route-panel" data-song-route-panel hidden></section>
       <section class="contribution-panel song-contribution-panel">
         <div class="panel-title">
           <h2>歌曲投稿</h2>
@@ -37,6 +42,7 @@
           <label>歌曲名<input type="text" data-song-title placeholder="歌曲名"></label>
           <label>歌手<input type="text" data-song-artist placeholder="歌手"></label>
           <label>专辑 / 来源<input type="text" data-song-album placeholder="专辑、EP 或资料来源"></label>
+          <label>封面图<input type="file" accept="image/*" data-song-cover></label>
           <label>关联地点<input type="text" data-song-places placeholder="巴黎 / 北京 / 九份"></label>
           <label class="form-wide">歌词片段或说明<textarea data-song-lyric placeholder="写下关联地点的歌词片段、出处或补充说明"></textarea></label>
           <label class="form-wide">来源链接<input type="url" data-song-source-url placeholder="https://"></label>
@@ -47,6 +53,7 @@
     </section>
   </main>
 
+  <script src="/config.js?v=amap-20260502"></script>
   <script src="./data.js"></script>
   <script src="./app.js?v=lyrics-map-20260507"></script>
 </body>

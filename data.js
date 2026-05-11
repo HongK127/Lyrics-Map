@@ -301,7 +301,9 @@
     ];
   }
 
-  function recommendation(kind, name, destination, lat, lng, index) {
+  const officialPlaceCoordinates = {};
+
+  function recommendation(kind, name, destination, lat, lng, index, destinationId) {
     const query = `${destination} ${name}`;
     const meta = guideKindMeta[kind];
     const sourceInfo =
@@ -310,6 +312,7 @@
         : index === 1
           ? source("小红书公开检索", search.xhs(`${query} 攻略`))
           : source("Google Maps 公开检索", search.googleMaps(query));
+    const coordinate = officialPlaceCoordinates[destinationId]?.[kind]?.[index] || null;
 
     return {
       name,
@@ -320,8 +323,9 @@
       bestFor: meta.bestFor[index] || meta.bestFor[0],
       reason: meta.reason,
       verifiedAt: accessed,
-      lat: Number((lat + (index - 0.5) * 0.018).toFixed(5)),
-      lng: Number((lng + (index - 0.5) * 0.018).toFixed(5)),
+      lat: coordinate?.lat ?? null,
+      lng: coordinate?.lng ?? null,
+      coordinateSource: coordinate ? { sourceName: coordinate.sourceName, sourceUrl: coordinate.sourceUrl, verifiedAt: coordinate.verifiedAt } : null,
       verification: `资料入口核验于 ${accessed}；页面不展示实时评分、价格或营业状态，请出发前打开来源再确认。`,
       source: sourceInfo,
     };

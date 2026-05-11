@@ -39,52 +39,20 @@
         <div class="local-map-card">
           <div id="localMap"></div>
         </div>
-        <div class="pin-legend">
-          <span class="pin eat"><span>🍜</span>吃</span>
-          <span class="pin stay"><span>🏨</span>住</span>
-          <span class="pin move"><span>🚇</span>行</span>
-          <span class="pin shop"><span>🛍</span>购物</span>
-          <span class="pin user"><span>＋</span>用户添加</span>
-        </div>
       </section>
 
-      <section class="recommendation-board" data-recommendation-board></section>
+      <section class="destination-guide-archive" data-guide-archive></section>
 
-      <section class="custom-guide-panel" data-custom-guide-panel>
-        <div class="panel-title">
-          <h2>我的攻略</h2>
-          <span data-custom-guide-status>保存在当前浏览器</span>
-        </div>
-        <form class="guide-edit-form" data-custom-guide-form novalidate>
-          <label>分类
-            <select data-custom-section>
-              <option value="eat">吃</option>
-              <option value="stay">住</option>
-              <option value="move">行</option>
-              <option value="shop">购物</option>
-              <option value="reading">阅读</option>
-              <option value="route">路线</option>
-            </select>
-          </label>
-          <label>名称<input type="text" data-custom-title placeholder="店名、书名或路线标题"></label>
-          <label>作者 / 区域<input type="text" data-custom-author placeholder="阅读作者、路线区域或补充标签"></label>
-          <label class="form-wide">说明<textarea data-custom-body placeholder="为什么想放进这份攻略"></textarea></label>
-          <label class="form-wide">来源链接<input type="url" data-custom-url placeholder="https://"></label>
-          <label>纬度<input type="number" step="0.000001" data-custom-lat placeholder="48.8567"></label>
-          <label>经度<input type="number" step="0.000001" data-custom-lng placeholder="2.3508"></label>
-          <button type="submit">添加到我的攻略</button>
-        </form>
-      </section>
+      <section class="recommendation-board" data-recommendation-board data-guide-content hidden></section>
 
-      <section class="reading-panel">
+      <section class="reading-panel" data-guide-content hidden>
         <div class="panel-title">
           <h2>适合带去读的书</h2>
-          <span><button type="button" class="inline-panel-action" data-preset-guide-section="reading">添加阅读</button></span>
         </div>
         <div class="reading-grid" data-reading-list></div>
       </section>
 
-      <section class="movie-panel">
+      <section class="movie-panel" data-guide-content hidden>
         <div class="panel-title">
           <h2>电影场景</h2>
           <span>Mocation 可视化链接</span>
@@ -92,49 +60,14 @@
         <div data-movie-scene></div>
       </section>
 
-      <section class="route-panel">
+      <section class="route-panel" data-guide-content hidden>
         <div class="panel-title">
           <h2>旅行路线</h2>
-          <span><button type="button" class="inline-panel-action" data-preset-guide-section="route">添加路线</button></span>
         </div>
         <ol data-route-list></ol>
       </section>
 
-      <section class="hidden-guide-panel" data-hidden-guide-panel hidden>
-        <div class="panel-title">
-          <h2>已隐藏的官方内容</h2>
-          <span>只影响我的攻略</span>
-        </div>
-        <div class="hidden-guide-list" data-hidden-guide-list></div>
-      </section>
-
-      <section class="contribution-panel">
-        <div class="panel-title">
-          <h2>目的地攻略投稿</h2>
-          <span data-destination-contribution-status>提交后立即预览，标记待收录</span>
-        </div>
-        <form class="guide-edit-form" data-destination-contribution-form novalidate>
-          <label>投稿类型
-            <select data-contribution-section>
-              <option value="eat">吃</option>
-              <option value="stay">住</option>
-              <option value="move">行</option>
-              <option value="shop">购物</option>
-              <option value="reading">阅读</option>
-              <option value="route">路线</option>
-            </select>
-          </label>
-          <label>名称<input type="text" data-contribution-title placeholder="想推荐的地点、书或路线"></label>
-          <label>作者 / 区域<input type="text" data-contribution-author placeholder="可选"></label>
-          <label class="form-wide">说明<textarea data-contribution-body placeholder="补充推荐理由、歌词关联或核验说明"></textarea></label>
-          <label class="form-wide">来源链接<input type="url" data-contribution-url placeholder="https://"></label>
-          <label>纬度<input type="number" step="0.000001" data-contribution-lat placeholder="可选"></label>
-          <label>经度<input type="number" step="0.000001" data-contribution-lng placeholder="可选"></label>
-          <button type="submit">提交攻略投稿</button>
-        </form>
-      </section>
-
-      <section class="source-board">
+      <section class="source-board" data-guide-content hidden>
         <div class="panel-title">
           <h2>来源与核验</h2>
           <span>不伪造评分，打开来源核验实时信息</span>
@@ -144,8 +77,33 @@
     </article>
   </main>
 
+  <div class="guide-drawer" data-guide-drawer hidden>
+    <div class="guide-drawer-backdrop" data-close-guide-drawer></div>
+    <aside class="guide-drawer-panel" aria-label="目的地攻略投稿">
+      <div class="panel-title">
+        <h2>目的地攻略投稿</h2>
+        <button type="button" class="icon-button" data-close-guide-drawer aria-label="关闭投稿">×</button>
+      </div>
+      <p class="source-line" data-destination-contribution-status>提交后立即预览为完整攻略卡片</p>
+      <form class="guide-package-form" data-destination-contribution-form novalidate>
+        <label>攻略标题<input type="text" data-package-title placeholder="巴黎完整旅行攻略"></label>
+        <label>投稿人<input type="text" data-package-contributor placeholder="昵称 / 来源账号"></label>
+        <label>封面图<input type="file" accept="image/*" data-package-cover></label>
+        <label>来源链接<input type="url" data-package-source-url placeholder="https://"></label>
+        <label class="form-wide">攻略简介<textarea data-package-summary placeholder="这份攻略适合怎样的旅行者，和哪句歌词最贴近"></textarea></label>
+        <label class="form-wide">吃<textarea data-package-eat placeholder="每行一条：名称 | 区域 | 推荐理由 | 来源链接 | 纬度 | 经度"></textarea></label>
+        <label class="form-wide">住<textarea data-package-stay placeholder="每行一条：名称 | 区域 | 推荐理由 | 来源链接 | 纬度 | 经度"></textarea></label>
+        <label class="form-wide">行<textarea data-package-move placeholder="每行一条：名称 | 区域 | 推荐理由 | 来源链接 | 纬度 | 经度"></textarea></label>
+        <label class="form-wide">购物<textarea data-package-shop placeholder="每行一条：名称 | 区域 | 推荐理由 | 来源链接 | 纬度 | 经度"></textarea></label>
+        <label class="form-wide">阅读与书籍路线<textarea data-package-reading placeholder="每行一条：书名 | 作者 | 说明 | 来源链接"></textarea></label>
+        <label class="form-wide">7天旅行路线<textarea data-package-seven-day-route placeholder="每行一条：Day | 标题 | 区域 | 上午 | 下午 | 晚上 | 备注 | 来源链接 | 纬度 | 经度"></textarea></label>
+        <button type="submit">提交完整攻略投稿</button>
+      </form>
+    </aside>
+  </div>
+
   <script src="/config.js?v=amap-20260502"></script>
   <script src="./data.js"></script>
-  <script src="./app.js?v=lyrics-map-20260507"></script>
+  <script src="./app.js?v=lyrics-map-20260511-guide-package"></script>
 </body>
 </html>

@@ -1,0 +1,40 @@
+{
+  "dateAccessed": "2026-05-01",
+  "note": "目的地图片统一使用本地 JPG 实景图；旅行手帐视觉素材来自用户提供的参考图片，已复制到 assets/journal/。",
+  "places": [
+    { "id": "paris", "file": "assets/places/巴黎.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/巴黎.jpg", "pending": false },
+    { "id": "beijing", "file": "assets/places/北京.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/北京.jpg", "pending": false },
+    { "id": "okinawa", "file": "assets/places/冲绳.JPG", "sourceName": "用户提供图片", "sourceUrl": "assets/places/冲绳.JPG", "pending": false },
+    { "id": "turkey", "file": "assets/places/土耳其.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/土耳其.jpg", "pending": false },
+    { "id": "shanghai", "file": "assets/places/上海.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/上海.jpg", "pending": false },
+    { "id": "geneva-lake", "file": "assets/places/日内瓦.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/日内瓦.jpg", "pending": false },
+    { "id": "qinghai", "file": "assets/places/青海.JPG", "sourceName": "用户提供图片", "sourceUrl": "assets/places/青海.JPG", "pending": false },
+    { "id": "sanya", "file": "assets/places/三亚.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/三亚.jpg", "pending": false },
+    { "id": "iceland", "file": "assets/places/冰岛.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/冰岛.jpg", "pending": false },
+    { "id": "greece", "file": "assets/places/希腊.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/希腊.jpg", "pending": false },
+    { "id": "south-america", "file": "assets/places/南美.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/南美.jpg", "pending": false },
+    { "id": "desert", "file": "assets/places/沙漠.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/沙漠.jpg", "pending": false },
+    { "id": "highway-one", "file": "assets/places/一号公路.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/一号公路.jpg", "pending": false },
+    { "id": "jiufen", "file": "assets/places/九份.JPG", "sourceName": "用户提供图片", "sourceUrl": "assets/places/九份.JPG", "pending": false },
+    { "id": "shonan", "file": "assets/places/湘南海岸.JPG", "sourceName": "用户提供图片", "sourceUrl": "assets/places/湘南海岸.JPG", "pending": false },
+    { "id": "taipei", "file": "assets/places/台北.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/台北.jpg", "pending": false },
+    { "id": "havana", "file": "assets/places/哈瓦那.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/哈瓦那.jpg", "pending": false },
+    { "id": "harbin", "file": "assets/places/哈尔滨.JPG", "sourceName": "用户提供图片", "sourceUrl": "assets/places/哈尔滨.JPG", "pending": false },
+    { "id": "norway", "file": "assets/places/挪威.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/挪威.jpg", "pending": false },
+    { "id": "uk", "file": "assets/places/英国.jpg", "sourceName": "用户提供图片", "sourceUrl": "assets/places/英国.jpg", "pending": false }
+  ],
+  "covers": [
+    { "id": "love-trip", "file": "assets/covers/love-trip.jpg", "sourceName": "Apple Music 爱之旅", "sourceUrl": "https://music.apple.com/cn/album/%E6%84%9B%E4%B9%8B%E6%97%85/905209719", "pending": false },
+    { "id": "gorgeous", "file": "assets/covers/gorgeous.jpg", "sourceName": "Apple Music 华丽的冒险", "sourceUrl": "https://music.apple.com/us/album/%E8%8F%AF%E9%BA%97%E7%9A%84%E5%86%92%E9%9A%AA/818157917?l=zh-Hans-CN", "pending": false },
+    { "id": "inner", "file": "assets/covers/inner.jpg", "sourceName": "Apple Music 我喜欢上你时的内心活动", "sourceUrl": "https://music.apple.com/us/album/%E6%88%91%E5%96%9C%E6%AD%A1%E4%B8%8A%E4%BD%A0%E6%99%82%E7%9A%84%E5%85%A7%E5%BF%83%E6%B4%BB%E5%8B%95/1238560844", "pending": false },
+    { "id": "pussy", "file": "assets/covers/pussy.jpg", "sourceName": "Apple Music Pussy EP", "sourceUrl": "https://music.apple.com/us/album/p-y-single/815425119", "pending": false },
+    { "id": "sofa", "file": "assets/covers/sofa.jpg", "sourceName": "Apple Music 沙发海", "sourceUrl": "https://music.apple.com/us/album/%E6%B2%99%E7%99%BC%E6%B5%B7/1444601920?l=zh-Hans-CN", "pending": false },
+    { "id": "sun", "file": "assets/covers/sun.jpg", "sourceName": "Apple Music 太阳", "sourceUrl": "https://music.apple.com/us/album/%E5%A4%AA%E9%99%BD/815493324", "pending": false },
+    { "id": "guitar", "file": "assets/covers/guitar.jpg", "sourceName": "Apple Music 吉他手", "sourceUrl": "https://music.apple.com/us/album/%E5%90%89%E4%BB%96%E6%89%8B/152197399", "pending": false },
+    { "id": "demo3", "file": "assets/covers/Demo3.jpg", "sourceName": "用户已下载 Demo 3 封面", "sourceUrl": "assets/covers/Demo3.jpg", "pending": false },
+    { "id": "havana-book", "file": "assets/covers/havana.png", "sourceName": "用户已下载《背对哈瓦那》图片", "sourceUrl": "assets/covers/havana.png", "pending": false }
+  ],
+  "generated": [
+    { "id": "travel-journal-collage", "file": "assets/generated/travel-journal-collage.png", "sourceName": "AI 生成旅行手账拼贴背景", "sourceUrl": "assets/generated/travel-journal-collage.png", "pending": false }
+  ]
+}
